@@ -1,0 +1,25 @@
+subject_id,session_id,run_id,counterbalance_group,block_id,block_order,video_id,condition_label,question_id,question_text,response_index,participant_answer,response_text,correct_answer,is_correct,reaction_time_ms,recorder_timestamp,device_sample_number
+synthetic-complete,ses-validation,synthetic-run,G01,1,1,V1,A,V1Q1,synthetic validation question,1,1,synthetic,1,1,900,1800000000.1899998,47
+synthetic-complete,ses-validation,synthetic-run,G01,1,1,V1,A,V1Q2,synthetic validation question,1,1,synthetic,1,1,900,1800000000.1999998,49
+synthetic-complete,ses-validation,synthetic-run,G01,1,1,V1,A,V1Q3,synthetic validation question,1,1,synthetic,1,1,900,1800000000.2099998,52
+synthetic-complete,ses-validation,synthetic-run,G01,1,1,V1,A,V1Q4,synthetic validation question,1,1,synthetic,1,1,900,1800000000.2199998,54
+synthetic-complete,ses-validation,synthetic-run,G01,2,2,V2,B,V2Q1,synthetic validation question,1,1,synthetic,1,1,900,1800000000.4199996,104
+synthetic-complete,ses-validation,synthetic-run,G01,2,2,V2,B,V2Q2,synthetic validation question,1,1,synthetic,1,1,900,1800000000.4299996,107
+synthetic-complete,ses-validation,synthetic-run,G01,2,2,V2,B,V2Q3,synthetic validation question,1,1,synthetic,1,1,900,1800000000.4399996,109
+synthetic-complete,ses-validation,synthetic-run,G01,2,2,V2,B,V2Q4,synthetic validation question,1,1,synthetic,1,1,900,1800000000.4499996,112
+synthetic-complete,ses-validation,synthetic-run,G01,3,3,V3,A,V3Q1,synthetic validation question,1,1,synthetic,1,1,900,1800000000.6499994,162
+synthetic-complete,ses-validation,synthetic-run,G01,3,3,V3,A,V3Q2,synthetic validation question,1,1,synthetic,1,1,900,1800000000.6599994,164
+synthetic-complete,ses-validation,synthetic-run,G01,3,3,V3,A,V3Q3,synthetic validation question,1,1,synthetic,1,1,900,1800000000.6699994,167
+synthetic-complete,ses-validation,synthetic-run,G01,3,3,V3,A,V3Q4,synthetic validation question,1,1,synthetic,1,1,900,1800000000.6799994,169
+synthetic-complete,ses-validation,synthetic-run,G01,4,4,V4,B,V4Q1,synthetic validation question,1,1,synthetic,1,1,900,1800000000.8799992,219
+synthetic-complete,ses-validation,synthetic-run,G01,4,4,V4,B,V4Q2,synthetic validation question,1,1,synthetic,1,1,900,1800000000.8899992,222
+synthetic-complete,ses-validation,synthetic-run,G01,4,4,V4,B,V4Q3,synthetic validation question,1,1,synthetic,1,1,900,1800000000.8999991,224
+synthetic-complete,ses-validation,synthetic-run,G01,4,4,V4,B,V4Q4,synthetic validation question,1,1,synthetic,1,1,900,1800000000.9099991,227
+synthetic-complete,ses-validation,synthetic-run,G01,5,5,V5,A,V5Q1,synthetic validation question,1,1,synthetic,1,1,900,1800000001.109999,277
+synthetic-complete,ses-validation,synthetic-run,G01,5,5,V5,A,V5Q2,synthetic validation question,1,1,synthetic,1,1,900,1800000001.119999,279
+synthetic-complete,ses-validation,synthetic-run,G01,5,5,V5,A,V5Q3,synthetic validation question,1,1,synthetic,1,1,900,1800000001.129999,282
+synthetic-complete,ses-validation,synthetic-run,G01,5,5,V5,A,V5Q4,synthetic validation question,1,1,synthetic,1,1,900,1800000001.139999,284
+synthetic-complete,ses-validation,synthetic-run,G01,6,6,V6,B,V6Q1,synthetic validation question,1,1,synthetic,1,1,900,1800000001.3399987,334
+synthetic-complete,ses-validation,synthetic-run,G01,6,6,V6,B,V6Q2,synthetic validation question,1,1,synthetic,1,1,900,1800000001.3499987,337
+synthetic-complete,ses-validation,synthetic-run,G01,6,6,V6,B,V6Q3,synthetic validation question,1,1,synthetic,1,1,900,1800000001.3599987,339
+synthetic-complete,ses-validation,synthetic-run,G01,6,6,V6,B,V6Q4,synthetic validation question,1,1,synthetic,1,1,900,1800000001.3699987,342

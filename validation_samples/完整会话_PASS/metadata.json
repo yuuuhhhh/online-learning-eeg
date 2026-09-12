@@ -1,0 +1,56 @@
+{
+  "synthetic_validation_only": true,
+  "run_id": "synthetic-complete",
+  "software_version": "2.1.0",
+  "protocol_version": "2.1",
+  "protocol_config_version": "2.1-pilot-2026-09-12",
+  "protocol_config_sha256": "663a0f51d1da30bab4a081528773463accd559bc623fc460e3433d1253a539d3",
+  "session": {
+    "subject_id": "synthetic-complete",
+    "session_id": "ses-validation",
+    "study_phase": "formal",
+    "counterbalance_group": "G01",
+    "sample_rate_hz": 250,
+    "channel_names": [
+      "synthetic_channel_0",
+      "synthetic_channel_1"
+    ],
+    "conditions": {
+      "A": {
+        "condition_label": "A",
+        "condition_type": "focused",
+        "instruction": "像正常线上学习一样认真观看，尽量理解和记忆，结束后有课堂理解题。"
+      },
+      "B": {
+        "condition_label": "B",
+        "condition_type": "bbbd_subtraction",
+        "instruction": "视频继续播放，从屏幕给出的数字开始在脑中连续减7；不出声、不持续输入；视频开始后数字消失。"
+      }
+    },
+    "b_start_numbers": {
+      "2": {
+        "start_number": 809
+      },
+      "4": {
+        "start_number": 811
+      },
+      "6": {
+        "start_number": 821
+      }
+    }
+  },
+  "preprocessing": {
+    "preserve_raw_eeg": true,
+    "line_noise_filter": {
+      "enabled": true,
+      "stage": "offline_copy_only",
+      "type": "notch_bandstop",
+      "center_hz": 50.0,
+      "note": "去除50Hz工频干扰应使用陷波/带阻而不是保留50Hz的带通；采集程序不测量50Hz比例。"
+    }
+  },
+  "labels": {
+    "-1": "no_instantaneous_attention_label"
+  },
+  "notice": "Synthetic integrity-test fixture; not scientific EEG data."
+}

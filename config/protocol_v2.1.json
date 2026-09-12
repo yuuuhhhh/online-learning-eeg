@@ -1,0 +1,171 @@
+{
+  "schema_version": "2.1.0",
+  "config_version": "2.1-pilot-2026-09-12",
+  "protocol_version": "2.1",
+  "software_version": "2.1.0",
+  "frozen_for_formal": false,
+  "study_phases": ["smoke", "pilot", "formal"],
+  "conditions": {
+    "A": {
+      "condition_label": "A",
+      "condition_type": "focused",
+      "instruction": "像正常线上学习一样认真观看，尽量理解和记忆，结束后有课堂理解题。"
+    },
+    "B": {
+      "condition_label": "B",
+      "condition_type": "bbbd_subtraction",
+      "instruction": "视频继续播放，从屏幕给出的数字开始在脑中连续减7；不出声、不持续输入；视频开始后数字消失。"
+    }
+  },
+  "counterbalance_groups": {
+    "G01": ["V1-A", "V2-B", "V3-A", "V4-B", "V5-A", "V6-B"],
+    "G02": ["V1-B", "V2-A", "V3-B", "V4-A", "V5-B", "V6-A"],
+    "G03": ["V2-A", "V3-B", "V4-A", "V5-B", "V6-A", "V1-B"],
+    "G04": ["V2-B", "V3-A", "V4-B", "V5-A", "V6-B", "V1-A"],
+    "G05": ["V3-A", "V4-B", "V5-A", "V6-B", "V1-A", "V2-B"],
+    "G06": ["V3-B", "V4-A", "V5-B", "V6-A", "V1-B", "V2-A"],
+    "G07": ["V4-A", "V5-B", "V6-A", "V1-B", "V2-A", "V3-B"],
+    "G08": ["V4-B", "V5-A", "V6-B", "V1-A", "V2-B", "V3-A"],
+    "G09": ["V5-A", "V6-B", "V1-A", "V2-B", "V3-A", "V4-B"],
+    "G10": ["V5-B", "V6-A", "V1-B", "V2-A", "V3-B", "V4-A"],
+    "G11": ["V6-A", "V1-B", "V2-A", "V3-B", "V4-A", "V5-B"],
+    "G12": ["V6-B", "V1-A", "V2-B", "V3-A", "V4-B", "V5-A"]
+  },
+  "flow": {
+    "block_count": 6,
+    "baseline_duration_sec": 60,
+    "rest_durations_after_block_sec": {"1": 30, "2": 30, "3": 180, "4": 30, "5": 30},
+    "self_caught_key": "k",
+    "self_caught_motor_mask_before_sec": 2.0,
+    "self_caught_motor_mask_after_sec": 2.0,
+    "self_caught_sensitivity_before_sec": 10.0,
+    "probe_transition_mask_after_sec": 2.0
+  },
+  "thought_probe": {
+    "question": "在这个问题出现前大约10秒，你的注意主要在哪里？",
+    "confidence_question": "你对刚才的回答有多确定？",
+    "options": [
+      {"value": 1, "label": "课程内容", "attention": "ON"},
+      {"value": 2, "label": "连续减7心算任务", "attention": "OFF"},
+      {"value": 3, "label": "其他与课程无关的事情", "attention": "OFF"},
+      {"value": 4, "label": "放空/不确定刚才在想什么", "attention": "AMBIGUOUS"}
+    ],
+    "confidence_choices": [1, 2, 3, 4],
+    "probes_per_block": 4,
+    "min_first_onset_sec": 45.0,
+    "min_end_margin_sec": 30.0,
+    "min_gap_sec": 45.0,
+    "soft_gap_min_sec": 60.0,
+    "soft_gap_max_sec": 100.0,
+    "epoch_duration_sec": 10.0
+  },
+  "qc": {
+    "interval_sec": 2.0,
+    "rolling_window_sec": 10.0,
+    "eeg_absence_alert_sec": 2.0,
+    "packet_loss_warning_pct": 1.0,
+    "packet_loss_fail_pct": 5.0,
+    "flatline_duration_sec": 2.0,
+    "extreme_dc_offset_counts": 4000000,
+    "extreme_amplitude_counts": 7500000,
+    "high_frequency_band_hz": [70.0, 100.0],
+    "high_frequency_ratio_warning_pct": 40.0,
+    "high_frequency_ratio_fail_pct": 70.0,
+    "threshold_status": "provisional_freeze_after_pilot",
+    "acquisition_line_noise_measurement": false
+  },
+  "preprocessing": {
+    "preserve_raw_eeg": true,
+    "line_noise_filter": {
+      "enabled": true,
+      "stage": "offline_copy_only",
+      "type": "notch_bandstop",
+      "center_hz": 50.0,
+      "note": "去除50Hz工频干扰应使用陷波/带阻而不是保留50Hz的带通；采集程序不测量50Hz比例。"
+    }
+  },
+  "materials": {
+    "version": "attention-course-2026-09-12",
+    "candidate_videos": [],
+    "videos": [
+      {
+        "video_id": "V1",
+        "title": "商鞅 一个改变秦国命运的男人",
+        "filename": "视频1-混知漫画｜商鞅！一个改变秦国命运的男人！-480P 标清-AVC.mp4",
+        "duration_sec": 346.795,
+        "match": ["视频1", "商鞅"],
+        "questions": [
+          {"question_id": "V1Q1", "text": "商鞅变法发生在哪个国家？", "options": ["魏国", "楚国", "秦国", "齐国"], "answer": 2},
+          {"question_id": "V1Q2", "text": "商鞅变法中，商鞅通过采取什么方法提升参军人数？", "options": ["采取军功爵位制", "采取户籍制", "废除井田制", "重农抑商"], "answer": 1},
+          {"question_id": "V1Q3", "text": "商鞅变法使秦国发生了怎样的变化？", "options": ["成为春秋霸主", "国力大增，为统一六国奠定基础", "废除分封制", "统一了全国文字"], "answer": 1},
+          {"question_id": "V1Q4", "text": "商鞅变法能够成功推行，离不开哪位国君的支持？", "options": ["秦穆公", "秦孝公", "秦始皇", "秦昭襄王"], "answer": 1}
+        ]
+      },
+      {
+        "video_id": "V2",
+        "title": "百家争鸣 到底是哪百家",
+        "filename": "视频2-混知漫画｜百家争鸣，到底是哪百家？-480P 标清-AVC.mp4",
+        "duration_sec": 312.774,
+        "match": ["视频2", "百家争鸣"],
+        "questions": [
+          {"question_id": "V2Q1", "text": "“百家争鸣”局面出现在哪个历史时期？", "options": ["夏商时期", "西周时期", "春秋战国时期", "秦朝"], "answer": 2},
+          {"question_id": "V2Q2", "text": "儒家学派的代表人物是？", "options": ["老子", "孔子", "墨子", "韩非子"], "answer": 1},
+          {"question_id": "V2Q3", "text": "法家的集大成者韩非子，其思想核心是？", "options": ["仁政", "无为而治", "以法治国", "兼爱非攻"], "answer": 2},
+          {"question_id": "V2Q4", "text": "纵横家学派的代表人物是？", "options": ["虞初", "邹衍", "张仪", "苏武"], "answer": 2}
+        ]
+      },
+      {
+        "video_id": "V3",
+        "title": "道德经主要讲的是什么",
+        "filename": "视频3-混知漫画｜《道德经》主要讲的啥呢？老子（下）-480P 标清-AVC.mp4",
+        "duration_sec": 326.241,
+        "match": ["视频3", "道德经", "老子"],
+        "questions": [
+          {"question_id": "V3Q1", "text": "《道德经》的作者是？", "options": ["孔子", "庄子", "老子", "孟子"], "answer": 2},
+          {"question_id": "V3Q2", "text": "《道德经》的核心思想是？", "options": ["仁爱", "兼爱", "道法自然", "以法治国"], "answer": 2},
+          {"question_id": "V3Q3", "text": "“无为而治”是哪个学派的政治主张？", "options": ["儒家", "道家", "法家", "墨家"], "answer": 1},
+          {"question_id": "V3Q4", "text": "老子认为，世间万物运行的根本规律是什么？", "options": ["礼", "仁", "道", "法"], "answer": 2}
+        ]
+      },
+      {
+        "video_id": "V4",
+        "title": "中国古代最大的歼灭战 长平之战",
+        "filename": "视频4-混知漫画｜中国古代最大的歼灭战——长平之战！-480P 标清-AVC.mp4",
+        "duration_sec": 313.819,
+        "match": ["视频4", "长平之战"],
+        "questions": [
+          {"question_id": "V4Q1", "text": "长平之战发生在哪两个国家之间？", "options": ["秦与楚", "秦与赵", "秦与魏", "秦与齐"], "answer": 1},
+          {"question_id": "V4Q2", "text": "长平之战中，赵国最初的将领是谁？", "options": ["廉颇", "赵括", "李牧", "白起"], "answer": 0},
+          {"question_id": "V4Q3", "text": "长平之战中，秦国的主将是谁？", "options": ["王翦", "白起", "蒙恬", "李信"], "answer": 1},
+          {"question_id": "V4Q4", "text": "长平之战对战国局势的影响是？", "options": ["六国联合抗秦", "赵国元气大伤，秦国统一趋势加强", "齐国成为最强国家", "周王室重新掌权"], "answer": 1}
+        ]
+      },
+      {
+        "video_id": "V5",
+        "title": "千古一帝秦始皇都做了什么",
+        "filename": "视频5-混知漫画｜千古一帝秦始皇都干了啥？-480P 标清-AVC.mp4",
+        "duration_sec": 391.048,
+        "match": ["视频5", "秦始皇"],
+        "questions": [
+          {"question_id": "V5Q1", "text": "秦朝什么时候建立的？", "options": ["公元前206年", "公元前221年", "公元前230年", "公元前202年"], "answer": 1},
+          {"question_id": "V5Q2", "text": "秦始皇统一六国后，在地方上推行了什么制度来取代分封制？", "options": ["分封制", "郡县制", "行省制", "科举制"], "answer": 1},
+          {"question_id": "V5Q3", "text": "秦始皇统一后，规定全国通行的标准文字是什么？", "options": ["甲骨文", "金文", "小篆", "隶书"], "answer": 2},
+          {"question_id": "V5Q4", "text": "秦始皇为促进各地经济交流，统一了以下哪一项？", "options": ["统一货币为半两钱", "统一使用黄金", "统一使用刀币", "统一使用布币"], "answer": 0}
+        ]
+      },
+      {
+        "video_id": "V6",
+        "title": "孔子的救世秘籍 仁爱 礼治 德治 中庸",
+        "filename": "视频6-混知漫画｜孔子的救世秘籍！仁爱，礼治，德治，中庸~孔子（下）-480P 标清-AVC.mp4",
+        "duration_sec": 325.754,
+        "match": ["视频6", "孔子"],
+        "questions": [
+          {"question_id": "V6Q1", "text": "孔子思想的核心是“仁”，根据孔子的解释，“仁”的实质是什么？", "options": ["遵守周礼", "关爱他人", "服从君主", "追求富贵"], "answer": 1},
+          {"question_id": "V6Q2", "text": "孔子主张“为政以德”，他认为治理国家应该以什么为主？", "options": ["以刑罚为主", "以道德教化为主要手段", "完全废除刑罚", "以军事力量统治"], "answer": 1},
+          {"question_id": "V6Q3", "text": "针对当时“礼崩乐坏”的社会环境，孔子提出了什么治国方案？", "options": ["德治", "礼治", "法治", "中庸"], "answer": 1},
+          {"question_id": "V6Q4", "text": "孔子提出的“中庸”思想，其核心含义是什么？", "options": ["无原则的折中调和", "做事恰到好处，不走极端", "完全顺从他人", "坚持极端立场"], "answer": 1}
+        ]
+      }
+    ]
+  }
+}

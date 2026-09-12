@@ -1,0 +1,2 @@
+base_valid_for_training,block_id,block_order,channel_0_raw,channel_0_uv,channel_1_raw,channel_1_uv,condition,condition_code,condition_label,condition_type,counterbalance_group,device_sample_number,group_id,is_formal_experiment,packet_gap_before,phase,quality_flag,received_order,received_timestamp,sample_index,sample_time_sec,sample_time_status,session_half,stream_segment,video_id,weak_label
+1,1,1,100,2.4,-100,-2.4,A,0,A,focused,G01,1,,1,0,video,,0,1800000000.0,1,0.004,synthetic,1,0,V1,-1

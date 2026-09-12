@@ -1,0 +1,1570 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>线上学习 EEG 一体化实验系统</title>
+<style>
+:root{
+  font-family:"Microsoft YaHei","PingFang SC",Arial,sans-serif;
+  color:#17212b;background:#eef2f6;
+}
+*{box-sizing:border-box}
+body{margin:0;background:#eef2f6;color:#17212b}
+button,input,select{font:inherit}
+button{cursor:pointer}
+.shell{max-width:1500px;margin:auto;padding:14px}
+.topbar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  background:#fff;border:1px solid #d9e1e8;border-radius:12px;padding:12px 16px;
+  box-shadow:0 3px 12px rgba(20,35,50,.06)
+}
+.title{font-size:20px;font-weight:800}
+.subtitle{font-size:13px;color:#6a7682;margin-top:3px}
+.badge{padding:7px 12px;border-radius:999px;background:#eaf2ff;color:#1d5fc4;font-weight:700}
+.grid{display:grid;grid-template-columns:minmax(0,2.3fr) minmax(330px,1fr);gap:14px;margin-top:14px}
+.card{background:#fff;border:1px solid #d9e1e8;border-radius:12px;box-shadow:0 3px 12px rgba(20,35,50,.05)}
+.pad{padding:15px}
+.setup{display:grid;grid-template-columns:repeat(8,minmax(105px,1fr));gap:10px}
+label{display:flex;flex-direction:column;gap:5px;font-size:13px;font-weight:700;color:#3f4b57}
+input,select{
+  border:1px solid #cbd5df;border-radius:8px;padding:9px 10px;background:#fff;color:#17212b;
+}
+.fileRow{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.btn{border:0;border-radius:8px;padding:10px 15px;font-weight:800}
+.primary{background:#246bd6;color:#fff}
+.danger{background:#c64141;color:#fff}
+.secondary{background:#e9eef3;color:#263441}
+.success{background:#19764d;color:#fff}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.loaded{font-size:13px;color:#53616f}
+.videoMatchGrid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;margin-top:9px}
+.videoMatchCell{
+  min-width:0;min-height:78px;border:1px solid #d8e0e8;border-radius:9px;padding:7px 9px;
+  background:#f8fafc;display:flex;flex-direction:column;gap:3px;transition:.15s ease
+}
+.videoMatchCell:not(.matched){min-height:42px;justify-content:center}
+.videoMatchCell.matched{border-color:#83c39e;background:#f0faf4;box-shadow:0 2px 7px rgba(31,122,75,.08)}
+.videoMatchCell.unmatched{border-color:#e09a9a;background:#fff5f5}
+.videoMatchCell.loading{border-color:#e2c27e;background:#fffaf0}
+.videoMatchTop{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.videoMatchId{font-size:15px;font-weight:900;color:#263746;letter-spacing:.2px}
+.videoMatchStatus{font-size:11px;font-weight:800;white-space:nowrap;display:inline-flex;align-items:center;gap:4px}
+.videoMatchStatus::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor;box-shadow:0 0 0 2px rgba(90,105,120,.08)}
+.videoMatchCell.matched .videoMatchStatus{color:#17683f}
+.videoMatchCell.unmatched .videoMatchStatus{color:#a41313}
+.videoMatchCell.loading .videoMatchStatus{color:#8a5200}
+.videoMatchTopic{font-size:11.5px;font-weight:750;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.videoMatchFile{font-size:10.5px;color:#71808e;line-height:1.35;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.videoMatchMethod{font-size:9.5px;color:#7a8996;margin-top:auto;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.videoWrap{
+  position:relative;background:#080b0e;border-radius:11px;overflow:hidden;aspect-ratio:16/9;
+  display:flex;align-items:center;justify-content:center;
+}
+video{width:100%;height:100%;object-fit:contain;background:#000}
+.emptyVideo{color:#aeb9c4;text-align:center;line-height:1.8}
+.overlay{
+  position:absolute;inset:0;background:rgba(4,8,12,.78);display:none;
+  align-items:center;justify-content:center;text-align:center;color:#fff;padding:28px;z-index:5
+}
+.overlay.show{display:flex}
+.overlayTitle{font-size:34px;font-weight:900}
+.overlayText{font-size:18px;color:#dbe5ee;margin-top:12px}
+.controls{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.progressInfo{margin-left:auto;font-variant-numeric:tabular-nums;font-weight:700;color:#4b5966}
+.side{display:flex;flex-direction:column;gap:14px}
+.conditionBox{text-align:center;padding:13px;border-radius:10px;background:#f3f6f9}
+.conditionBox b{font-size:22px}
+.taskStage{
+  min-height:245px;display:flex;align-items:center;justify-content:center;text-align:center;
+  border:2px solid #e0e6ec;border-radius:12px;background:#f8fafc;padding:18px
+}
+.taskSymbol{font-size:54px;color:#246bd6;font-weight:900}
+.taskHint{margin-top:18px;color:#687583;font-size:15px;line-height:1.7}
+.startNumber{font-size:76px;font-weight:900;letter-spacing:4px;color:#ffe071;margin-top:18px}
+.probeOverlay{z-index:9;background:rgba(4,8,12,.93)}
+.probeBox{max-width:620px;text-align:left}
+.probeQuestion{font-size:23px;font-weight:900;color:#fff;margin-bottom:14px}
+.probeOptions{display:flex;flex-direction:column;gap:9px}
+.probeBtn{
+  border:1px solid #bfcbd6;border-radius:9px;padding:12px 14px;background:#f4f7fb;color:#17212b;
+  font-weight:700;text-align:left
+}
+.probeBtn:disabled{opacity:.45}
+.probeStep{margin-top:20px;padding-top:16px;border-top:1px solid rgba(255,255,255,.25)}
+.probeHint{margin-top:14px;color:#cdd8e3;font-size:14px}
+.practicePanel{margin-top:14px;padding:22px;border:2px solid #9fc1ec;background:#eef5ff;border-radius:12px;text-align:center}
+.practicePanel.done{display:none}
+.practiceNumber{font-size:42px;font-weight:900;color:#174f91;margin:12px 0}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:7px;margin-top:10px}
+.stat{padding:9px;border:1px solid #dfe5eb;border-radius:8px;text-align:center;font-size:12px;color:#66727e}
+.stat b{display:block;margin-top:3px;color:#1f2b36;font-size:17px}
+.sectionTitle{font-size:16px;font-weight:900;margin-bottom:10px}
+.log{height:170px;overflow:auto;background:#101820;color:#dce6ee;border-radius:9px;padding:10px;font:12px/1.5 Consolas,monospace;white-space:pre-wrap}
+.postPanel{display:none;margin-top:14px}
+.postPanel.show{display:block}
+.ratingRow{display:flex;gap:8px;flex-wrap:wrap}
+.ratingBtn{min-width:54px;padding:10px;border:1px solid #bfcbd6;border-radius:8px;background:#fff;font-weight:800}
+.ratingBtn.selected{background:#246bd6;color:#fff;border-color:#246bd6}
+.quizQ{border-top:1px solid #e4e9ee;padding:14px 0}
+.quizQ:first-child{border-top:0}
+.quizStem{font-weight:800;margin-bottom:9px}
+.option{display:block;border:1px solid #d7dfe7;border-radius:8px;padding:9px;margin:6px 0;cursor:pointer}
+.option:hover{background:#f5f8fb}
+.option input{margin-right:8px}
+.summary{display:none;padding:16px;margin-top:14px;background:#edf8f2;border:1px solid #b9dfca;border-radius:10px}
+.summary.show{display:block}
+.restBox{display:none;padding:18px;margin-top:14px;background:#eef5ff;border:1px solid #b9d2f2;border-radius:10px;text-align:center}
+.restBox.show{display:block}
+.restClock{font-size:32px;font-weight:900;color:#1d5fc4;margin:10px 0}
+.warning{font-size:13px;background:#fff6e4;border:1px solid #efd29a;padding:10px;border-radius:8px;color:#8a5200;margin-top:10px}
+.orderBanner{margin-top:12px;padding:13px;border-radius:9px;background:#eef5ff;border:1px solid #9fc1ec;color:#174f91;font-size:17px;font-weight:900;text-align:center}
+.qcState{padding:11px;border-radius:9px;background:#f1f3f5;color:#55616d;font-weight:900;margin-bottom:10px}
+.qcState.good{background:#e7f7ee;color:#17683f}.qcState.warning{background:#fff3db;color:#8a5200}.qcState.bad{background:#ffe3e3;color:#a41313;border:2px solid #d63030}
+.qcGrid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:6px;font-size:13px}
+.qcGrid>div{padding:7px;border-bottom:1px solid #e3e8ed}.qcHead{font-weight:900;color:#45515c}
+.small{font-size:12px;color:#687583}
+@media(max-width:1050px){
+ .grid{grid-template-columns:1fr}
+ .setup{grid-template-columns:repeat(3,1fr)}
+ .videoMatchGrid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:650px){
+ .setup{grid-template-columns:1fr 1fr}
+ .stats{grid-template-columns:1fr 1fr}
+ .videoMatchGrid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+</style>
+</head>
+<body>
+<div class="shell">
+  <div class="topbar">
+    <div>
+      <div class="title">线上学习 EEG 一体化实验系统</div>
+      <div class="subtitle">协议 v2.1 · G01–G12 平衡 · BBBD 连续减7 · Thought Probe · 完整问卷与四题测验</div>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:flex-end">
+      <div class="badge" id="eegLinkState" style="background:#fff3db;color:#8a5200">EEG采集端：连接中</div>
+      <div class="badge" id="orderState">G组待同步</div>
+      <div class="badge" id="groupState">上半程｜Block 1/6</div>
+      <div class="badge" id="systemState">准备阶段</div>
+    </div>
+  </div>
+
+  <div class="card pad" style="margin-top:14px">
+    <div class="setup">
+      <label>被试编号
+        <input id="subjectId" value="sub-001">
+      </label>
+      <label>会话编号
+        <input id="sessionId" value="ses-001">
+      </label>
+      <label>Block编号
+        <input id="blockId" value="1">
+      </label>
+      <label>Counterbalance组
+        <input id="counterbalanceGroup" value="待同步" readonly>
+      </label>
+      <label>实验条件
+        <select id="condition">
+          <option value="A">A：课程单任务</option>
+          <option value="B">B：课程＋脑内连续减7</option>
+        </select>
+      </label>
+      <label>视频专题
+        <select id="topicSelect"></select>
+      </label>
+    </div>
+
+    <div class="fileRow">
+      <input id="videoFiles" type="file" accept="video/*,.mp4" multiple style="display:none">
+      <button class="btn secondary" id="chooseVideos">选择6个视频文件</button>
+      <button class="btn secondary" id="clearVideos">清除视频列表</button>
+      <span class="loaded" id="loadedText">尚未选择视频</span>
+    </div>
+    <div class="warning">
+      视频无需上传。请选择“注意力课程材料9.12”中的6个 MP4；系统按 V1–V6 文件名匹配，并按采集端分配的 G 组锁定顺序。
+    </div>
+    <div class="orderBanner" id="orderBanner">等待采集端同步本次实验顺序</div>
+    <div id="videoMatchPanel" class="videoMatchGrid" aria-live="polite" aria-label="六个视频匹配状态"></div>
+  </div>
+
+  <div class="practicePanel" id="practicePanel">
+    <div class="sectionTitle">连续减7练习</div>
+    <div>从给定数字开始，在脑中连续减7。不出声，不使用手指明显计数，不持续按键。</div>
+    <div class="practiceNumber" id="practiceNumber">100</div>
+    <div class="small">例如：100 → 93 → 86……只需在脑中继续，不需要输入答案。</div>
+    <button class="btn primary" id="confirmPractice" style="margin-top:14px">已理解，可以继续</button>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div class="card pad">
+        <div class="videoWrap">
+          <video id="video" preload="metadata"></video>
+          <div id="videoEmpty" class="emptyVideo">请先选择本地视频文件<br>系统会按文件名自动匹配 V1 至 V6</div>
+          <div class="overlay" id="overlay">
+            <div>
+              <div class="overlayTitle" id="overlayTitle">条件提示</div>
+              <div class="overlayText" id="overlayText"></div>
+              <div class="startNumber" id="startNumberDisplay" style="display:none"></div>
+            </div>
+          </div>
+          <div class="overlay probeOverlay" id="probePanel">
+            <div class="probeBox">
+              <div class="probeQuestion" id="probeQuestion">在这个问题出现前大约10秒，你的注意主要在哪里？</div>
+              <div class="probeOptions" id="probeOptions"></div>
+              <div class="probeStep" id="confidenceSection" style="display:none">
+                <div class="probeQuestion" id="confidenceQuestion">你对刚才的回答有多确定？</div>
+                <div class="probeOptions" id="confidenceOptions"></div>
+              </div>
+              <div class="probeHint" id="probeHint">请选择一个选项。</div>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <button class="btn primary" id="startBlock" disabled>开始本Block</button>
+          <button class="btn secondary" id="pauseBlock" disabled>暂停</button>
+          <button class="btn danger" id="stopBlock" disabled>紧急结束</button>
+          <button class="btn secondary" id="syncMark">记录同步标记（S）</button>
+          <span class="progressInfo" id="videoTime">00:00 / 00:00</span>
+        </div>
+        <div class="controls" style="margin-top:6px">
+          <label style="flex-direction:row;align-items:center;gap:6px;font-weight:700;color:#8a5200">
+            <input type="checkbox" id="probeFastMode" style="width:auto">调试：快速probe（短视频可用）
+          </label>
+          <button class="btn secondary" id="forceProbe" disabled>调试：立即触发下一个probe</button>
+          <span class="small" id="probeState">probe：未安排</span>
+        </div>
+        <div class="small" style="margin-top:8px">
+          A条件正常观看；B条件只需在脑中连续减7。视频期间不需要持续按键或鼠标操作。
+          视频播放中会自动出现 thought probe，暂停作答后自动从原位置继续。自觉注意偏离时按 K 键记录 self-caught 标记。
+        </div>
+      </div>
+
+      <div class="card pad postPanel" id="postPanel">
+        <div id="ratingSection">
+          <div class="sectionTitle">第一步：Block 后完整问卷</div>
+          <label>课程注意力 1–5
+            <select id="courseAttentionRating"><option value="">请选择</option></select>
+          </label>
+          <label>心理努力 Paas 1–9：刚才完成这一整个 block 的任务时，你付出了多大的心理努力？
+            <select id="mentalEffort"><option value="">请选择</option></select>
+          </label>
+          <label>视频兴趣 1–5
+            <select id="videoInterest"><option value="">请选择</option></select>
+          </label>
+          <label>视频内容难度 1–5（只评价视频内容，不评价双任务）
+            <select id="videoDifficulty"><option value="">请选择</option></select>
+          </label>
+          <div id="bRatingFields" style="display:none">
+            <label>持续做减7的时间比例
+              <select id="subtractionCompliance"><option value="">请选择</option></select>
+            </label>
+            <label>减7任务难度 1–5
+              <select id="subtractionDifficulty"><option value="">请选择</option></select>
+            </label>
+            <label>最后算到的整数
+              <input id="reportedFinalNumber" type="number" step="1">
+            </label>
+          </div>
+          <button class="btn primary" id="submitRating" style="margin-top:14px">提交完整问卷并进入测验</button>
+        </div>
+
+        <div id="quizSection" style="display:none">
+          <div class="sectionTitle">第二步：专题课后测验</div>
+          <div id="quizContainer"></div>
+          <button class="btn success" id="submitQuiz">提交本专题答案</button>
+        </div>
+
+        <div class="restBox" id="restSection">
+          <div class="sectionTitle" id="restTitle">Block间休息</div>
+          <div id="restInstruction">请按计划休息。开发调试时可提前结束。</div>
+          <div class="restClock" id="restClock">00:00</div>
+          <button class="btn primary" id="endRest" disabled>倒计时结束后继续</button>
+        </div>
+
+        <div class="summary" id="integritySection"></div>
+
+        <div class="summary" id="summary"></div>
+      </div>
+    </div>
+
+    <div class="side">
+      <div class="card pad">
+        <div class="conditionBox">
+          当前条件：<b id="conditionLabel">A 课程单任务</b>
+          <div class="small" id="topicLabel">尚未载入视频</div>
+        </div>
+        <div class="taskStage" style="margin-top:12px">
+          <div>
+            <div id="taskSymbol" class="taskSymbol">A</div>
+            <div id="taskHint" class="taskHint">像正常线上学习一样认真观看，尽量理解和记忆，结束后有课堂理解题。</div>
+          </div>
+        </div>
+        <div class="stats" style="grid-template-columns:1fr">
+          <div class="stat">视频状态<b id="playState">未开始</b></div>
+        </div>
+      </div>
+
+      <div class="card pad">
+        <div class="sectionTitle">EEG质量控制</div>
+        <div class="qcState" id="qcState">等待采集端QC</div>
+        <div class="qcGrid">
+          <div class="qcHead">通道</div><div class="qcHead">饱和率</div><div class="qcHead">RMS</div><div class="qcHead">高频污染</div>
+          <div>通道 1</div><div id="qcSat0">--</div><div id="qcRms0">--</div><div id="qcHigh0">--</div>
+          <div>通道 2</div><div id="qcSat1">--</div><div id="qcRms1">--</div><div id="qcHigh1">--</div>
+        </div>
+        <div class="small" id="qcShared" style="margin-top:9px">丢包率：--｜数据龄：--</div>
+        <div class="small" id="qcBaseline" style="margin-top:6px">采前基线：未开始</div>
+        <div class="small" style="margin-top:6px">QC每2秒更新。连续约2秒无EEG会自动暂停视频；恢复后须由实验员确认同步再继续。采集阶段不测量50Hz比例。</div>
+      </div>
+
+      <div class="card pad">
+        <div class="sectionTitle">数据操作</div>
+        <div class="controls">
+          <button class="btn secondary" id="exportCsv" disabled>导出CSV</button>
+          <button class="btn secondary" id="exportJson" disabled>导出JSON</button>
+          <button class="btn secondary" id="newBlock" disabled>准备下一Block</button>
+          <button class="btn danger" id="clearAll">清除当前记录</button>
+        </div>
+        <div class="small" style="margin-top:8px">
+          每完成一个Block就立即导出。浏览器会保留本地备份，但不要把希望寄托在人类和浏览器共同的记忆力上。
+        </div>
+      </div>
+
+      <div class="card pad">
+        <div class="sectionTitle">事件日志</div>
+        <div class="log" id="log">系统已就绪。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+let PROTOCOL_CONFIG=null;
+let TOPICS={};
+
+const $ = id => document.getElementById(id);
+const video = $("video");
+const events = [];
+const quizRecords = [];
+const ratingRecords = [];
+const videoMap = new Map();
+let selectedVideoFiles = [];
+let objectUrls = [];
+let blockStarted = false;
+let blockFinished = false;
+let blockStartPerf = null;
+let blockStartIso = null;
+let ratingStartedPerf = null;
+let quizStartedPerf = null;
+let quizAnswerTimes = {};
+let conditionAtStart = null;
+let topicAtStart = null;
+let configAtStart = null;
+let restStartedPerf = null;
+let restTimer = null;
+let restingAfterBlock = null;
+let restPlannedDuration = null;
+let practiceStartedForRun = null;
+let practiceConfirmed = false;
+let startNumberDisplayedAt = null;
+
+let PROBE_QUESTION="";
+let PROBE_CONFIDENCE_QUESTION="";
+let PROBE_OPTIONS=[];
+let PROBE_ATTENTION=[];
+const CONFIDENCE_LABELS=["1｜很不确定","2｜不太确定","3｜比较确定","4｜非常确定"];
+let PROBE_CONFIG={probes_per_block:4,min_first_onset_sec:45,min_end_margin_sec:30,min_gap_sec:45};
+// 开发调试用：短视频也能在几秒内连续触发四个probe。
+const PROBE_DEBUG_CONFIG={probes_per_block:4,min_first_onset_sec:5,min_end_margin_sec:3,min_gap_sec:5};
+let probeSchedule=null;
+let probeIndex=0;
+let activeProbe=null;
+
+const EEG_ENDPOINTS=["http://127.0.0.1:80","http://127.0.0.1:9932"];
+const eegEventQueue=[];
+const deliveredEventIds=new Set();
+let eegEndpoint=null;
+let eegSending=false;
+let activeEegSession=null;
+let eegRetryTimer=null;
+const browserClientId=sessionStorage.getItem("eeg_browser_client_id")||clientEventId();
+sessionStorage.setItem("eeg_browser_client_id",browserClientId);
+const rejectedEegEvents=[];
+let eegClockOffset=null;
+let eegClockRoundTripMs=null;
+let eegClockRunId=null;
+let eegClockSamples=[];
+let shutdownPreparing=false;
+let shutdownRequestId=null;
+let shutdownFinalEventId=null;
+let shutdownAckBusy=false;
+let shutdownAcknowledged=false;
+let savedControlStates=[];
+let conditionPromptTimer=null;
+let eegDropoutPaused=false;
+let lastSignalAlive=null;
+let recoveryBlocked=false;
+let recoveryReportedRun=null;
+
+function clientClockSeconds(){return (performance.timeOrigin+performance.now())/1000}
+
+function clientEventId(){
+  if(globalThis.crypto?.randomUUID)return crypto.randomUUID();
+  return `evt-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+function setEegLinkState(text,state="warning"){
+  const el=$("eegLinkState");el.textContent=text;
+  const colors={good:["#e7f7ee","#17683f"],warning:["#fff3db","#8a5200"],bad:["#ffe3e3","#a41313"]};
+  const pair=colors[state]||colors.warning;el.style.background=pair[0];el.style.color=pair[1];
+}
+async function fetchTimeout(url,options={},timeoutMs=1200){
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeoutMs);
+  try{return await fetch(url,{...options,signal:controller.signal})}finally{clearTimeout(timer)}
+}
+function fmtQc(value,suffix=""){
+  return value===null||value===undefined||!Number.isFinite(Number(value))?"--":`${Number(value).toFixed(2)}${suffix}`;
+}
+function applyQc(qc){
+  const state=qc.status||"waiting";
+  const box=$("qcState");box.className=`qcState ${state}`;
+  const details=(qc.messages||[]).join(" ");
+  box.textContent=`${qc.status_label||"等待QC"}${details?`｜${details}`:""}`;
+  [0,1].forEach(index=>{
+    const channel=(qc.channels||[])[index]||{};
+    $(`qcSat${index}`).textContent=fmtQc(channel.saturation_rate_pct,"%");
+    $(`qcRms${index}`).textContent=fmtQc(channel.rms_uv," µV");
+    $(`qcHigh${index}`).textContent=fmtQc(channel.high_frequency_ratio_pct,"%");
+  });
+  $("qcShared").textContent=`丢包率：${fmtQc(qc.packet_loss_rate_pct,"%")}｜数据龄：${fmtQc(qc.data_age_sec,"秒")}｜信号：${qc.signal_alive?"在线":"中断"}`;
+  const signalAlive=qc.signal_alive===true;
+  if(lastSignalAlive!==false&&!signalAlive&&blockStarted&&!blockFinished){
+    if(!video.paused)video.pause();
+    eegDropoutPaused=true;
+    $("pauseBlock").disabled=true;$("pauseBlock").textContent="等待EEG恢复";
+    recordEvent("video_pause",{pause_reason:"eeg_dropout",reason:"automatic_watchdog"});
+    log("EEG连续约2秒无数据，视频已自动暂停");
+  }else if(lastSignalAlive===false&&signalAlive&&eegDropoutPaused){
+    $("pauseBlock").disabled=false;$("pauseBlock").textContent="确认同步并继续";
+    log("EEG已恢复，请实验员确认同步后继续视频");
+  }
+  lastSignalAlive=signalAlive;
+  const baseline=qc.baseline||{};
+  if(baseline.complete&&baseline.passed){
+    $("qcBaseline").textContent="采前基线：已通过，可以开始正式实验";
+  }else if(baseline.complete&&baseline.override){
+    $("qcBaseline").textContent="采前基线：异常已由实验员排查并确认";
+  }else if(baseline.complete){
+    $("qcBaseline").textContent="采前基线：未通过，请回到采集窗口排查/重测";
+  }else if(baseline.started){
+    $("qcBaseline").textContent=`采前基线：采集中 ${fmtQc(baseline.recorded_sec)} / ${fmtQc(baseline.target_sec)} 秒`;
+  }else{
+    $("qcBaseline").textContent="采前基线：未开始，请在采集窗口操作";
+  }
+}
+function refreshStartButton(){
+  const ready=Boolean(
+    videoMap.size===6&&videoMap.has($("topicSelect").value)&&eegEndpoint&&activeEegSession?.qc_ready_for_experiment&&
+    activeEegSession?.qc?.signal_alive===true&&activeEegSession?.qc?.status!=="bad"&&practiceConfirmed&&!blockStarted&&!shutdownPreparing&&!recoveryBlocked
+  );
+  $("startBlock").disabled=!ready;
+}
+function syncPracticeUi(info){
+  const practice=info.subtraction_practice;
+  if(!practice){practiceConfirmed=true;$("practicePanel").classList.add("done");return}
+  $("practiceNumber").textContent=practice.practice_number||100;
+  if(practiceStartedForRun!==info.run_id){
+    practiceStartedForRun=info.run_id;
+    practiceConfirmed=Boolean(practice.confirmed);
+    if(!practice.started){
+      recordEvent("subtraction_practice_start",{
+        block_id:"",condition:"",condition_type:"",topic_key:"",topic_name:"",
+        practice_number:practice.practice_number||100,is_formal_experiment:0
+      });
+    }
+  }else if(practice.confirmed){practiceConfirmed=true}
+  $("practicePanel").classList.toggle("done",practiceConfirmed);
+  $("confirmPractice").disabled=practiceConfirmed;
+}
+function confirmSubtractionPractice(){
+  if(!activeEegSession){alert("请先启动并连接EEG采集会话。");return}
+  if(practiceConfirmed)return;
+  const practiceNumber=Number($("practiceNumber").textContent)||100;
+  recordEvent("subtraction_practice_end",{
+    block_id:"",condition:"",condition_type:"",topic_key:"",topic_name:"",
+    practice_number:practiceNumber,is_formal_experiment:0
+  });
+  recordEvent("practice_confirmed",{
+    block_id:"",condition:"",condition_type:"",topic_key:"",topic_name:"",
+    practice_number:practiceNumber,is_formal_experiment:0
+  });
+  practiceConfirmed=true;
+  $("practicePanel").classList.add("done");
+  $("confirmPractice").disabled=true;
+  refreshStartButton();
+  log("连续减7练习已确认");
+}
+function applyEegSession(info){
+  activeEegSession=info;
+  if(info.protocol_config)hydrateProtocol(info.protocol_config);
+  let dropped=0;
+  for(let i=eegEventQueue.length-1;i>=0;i--){
+    const runId=eegEventQueue[i].recorder_run_id;
+    if(runId&&runId!==info.run_id&&runId!==info.run_directory){
+      rejectedEegEvents.push({event:eegEventQueue.splice(i,1)[0],reason:"belongs_to_other_run"});dropped++;
+    }
+  }
+  if(dropped){log(`已保留 ${dropped} 个旧会话事件到本地备份，未写入当前会话`);backup()}
+  if(!blockStarted){
+    $("subjectId").value=info.subject_id;
+    $("sessionId").value=info.session_id;
+    const completed=(info.completed_blocks||[]).map(Number).filter(Number.isInteger);
+    const blockNum=Number(info.current_block)||Math.min(6,completed.length+1)||1;
+    $("blockId").value=`Block ${blockNum}`;
+    if(blockNum>=1&&blockNum<=6){
+      const planned=info.planned_blocks[blockNum-1];
+      $("condition").value=planned.condition_label;
+      $("topicSelect").value=planned.video_id;
+      updateConditionUi();updateTopicUi();
+    }
+    updateGroupUi();
+
+    // A browser refresh cannot restore security-scoped local video handles.  It
+    // is safe to continue only between fully submitted blocks; otherwise lock
+    // the page and leave an explicit event so the authority-side report fails.
+    const runEvents=events.filter(event=>[info.run_id,info.run_directory].includes(event.recorder_run_id));
+    let recoveryReason="";
+    let affectedBlock=Number(info.current_block)||Math.max(0,...completed);
+    if(Number(info.current_block)>0){
+      recoveryReason=`页面在 Block ${info.current_block} 进行中刷新，视频句柄无法安全恢复`;
+    }else if(info.phase==="rest"){
+      recoveryReason=`页面在 Block ${affectedBlock} 后休息期间刷新，倒计时无法安全恢复`;
+    }else if(affectedBlock>0){
+      const ratingDone=runEvents.some(event=>event.event_type==="rating_end"&&Number(event.block_id)===affectedBlock);
+      const quizDone=runEvents.filter(event=>event.event_type==="quiz_item_response"&&Number(event.block_id)===affectedBlock).length;
+      if(!ratingDone||quizDone!==4){
+        recoveryReason=`Block ${affectedBlock} 已结束，但问卷/课堂题尚未完整提交`;
+      }
+    }
+    if(recoveryReason){
+      recoveryBlocked=true;lockSetup(true);
+      $("startBlock").disabled=true;$("pauseBlock").disabled=true;$("stopBlock").disabled=true;
+      $("systemState").textContent="恢复被阻止｜本会话将标记为 incomplete";
+      setEegLinkState(recoveryReason,"bad");
+      if(recoveryReportedRun!==info.run_id){
+        recoveryReportedRun=info.run_id;
+        recordEvent("browser_recovery_blocked",{reason:recoveryReason,server_phase:info.phase,block_id:affectedBlock});
+        alert(`${recoveryReason}。为避免覆盖或错位，本页面已锁定。请结束采集并保留该 run，session_qc_report.json 会标记缺项。`);
+      }
+    }
+  }
+  const sequence=info.planned_sequence.join("-");
+  $("counterbalanceGroup").value=info.counterbalance_group;
+  $("orderState").textContent=`${info.counterbalance_group}｜${sequence}`;
+  $("orderBanner").textContent=`${info.study_phase}｜${info.counterbalance_group}｜系统锁定每个Block的视频、条件和位置`;
+  $("subjectId").disabled=true;$("sessionId").disabled=true;$("blockId").disabled=true;
+  $("condition").disabled=true;$("topicSelect").disabled=true;
+  $("probeFastMode").closest("label").style.display=info.study_phase==="smoke"?"flex":"none";
+  $("forceProbe").style.display=info.study_phase==="smoke"?"inline-block":"none";
+  syncPracticeUi(info);
+  applyQc(info.qc||{});
+  const qcBad=info.qc?.status==="bad";
+  const noData=info.qc?.signal_alive===false;
+  if(!recoveryBlocked){
+    setEegLinkState(
+      noData?`EEG中断 ${Number(info.qc.data_age_sec||0).toFixed(1)}秒｜视频已暂停`:`EEG已连接｜${info.subject_id}｜${info.counterbalance_group}`,
+      qcBad?"bad":"good"
+    );
+  }
+  refreshStartButton();
+  if(info.shutdown_request_id){
+    prepareBrowserShutdown(info.shutdown_request_id);
+  }else if(shutdownPreparing){
+    cancelBrowserShutdown();
+  }
+}
+async function discoverEegRecorder(){
+  for(const base of EEG_ENDPOINTS){
+    try{
+      const before=clientClockSeconds();
+      const response=await fetchTimeout(`${base}/session?client_id=${encodeURIComponent(browserClientId)}&pending=${eegEventQueue.length}`,{},900);
+      if(!response.ok)continue;
+      const info=await response.json();const after=clientClockSeconds();
+      if(Number.isFinite(info.server_timestamp)){
+        if(eegClockRunId!==info.run_id){eegClockSamples=[];eegClockRunId=info.run_id}
+        eegClockSamples.push({at:after,offset:info.server_timestamp-(before+after)/2,rtt:(after-before)*1000});
+        eegClockSamples=eegClockSamples.filter(sample=>after-sample.at<60).slice(-20);
+        const best=eegClockSamples.reduce((a,b)=>a.rtt<=b.rtt?a:b);
+        eegClockOffset=best.offset;eegClockRoundTripMs=best.rtt;
+      }
+      eegEndpoint=base;applyEegSession(info);flushEegQueue();
+      clearTimeout(eegRetryTimer);eegRetryTimer=setTimeout(discoverEegRecorder,2000);return true;
+    }catch(_e){}
+  }
+  eegEndpoint=null;activeEegSession=null;
+  setEegLinkState(`EEG采集端未连接｜待发送 ${eegEventQueue.length} 个事件`,"bad");
+  applyQc({status:"bad",status_label:"采集端断开",messages:["请检查采集窗口并重新连接。"],channels:[]});
+  refreshStartButton();
+  clearTimeout(eegRetryTimer);eegRetryTimer=setTimeout(discoverEegRecorder,2000);return false;
+}
+function queueEegEvent(eventRecord){
+  eegEventQueue.push(eventRecord);flushEegQueue();
+}
+async function flushEegQueue(){
+  if(eegSending||!eegEndpoint||!eegEventQueue.length)return;
+  eegSending=true;
+  try{
+    while(eegEventQueue.length&&eegEndpoint){
+      const eventRecord=eegEventQueue[0];
+      const response=await fetchTimeout(`${eegEndpoint}/trigger`,{
+        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(eventRecord)
+      },1800);
+      if(!response.ok){
+        let detail="";try{detail=(await response.json()).error||""}catch(_e){}
+        if(response.status===400||response.status===409){
+          const index=eegEventQueue.indexOf(eventRecord);if(index>=0)eegEventQueue.splice(index,1);
+          rejectedEegEvents.push({event:eventRecord,reason:detail||`HTTP ${response.status}`});
+          backup();log(`事件被采集端拒绝，已保留本地副本：${detail}`);continue;
+        }
+        throw new Error(detail||`HTTP ${response.status}`);
+      }
+      const index=eegEventQueue.indexOf(eventRecord);if(index>=0)eegEventQueue.splice(index,1);
+      deliveredEventIds.add(eventRecord.client_event_id);backup();
+      setEegLinkState(`EEG已同步｜待发送 ${eegEventQueue.length} 个事件`,"good");
+    }
+  }catch(error){
+    setEegLinkState(`EEG同步失败：${error.message}｜待发送 ${eegEventQueue.length}`,"bad");
+    eegEndpoint=null;clearTimeout(eegRetryTimer);eegRetryTimer=setTimeout(discoverEegRecorder,2000);
+  }finally{eegSending=false;if(shutdownPreparing)acknowledgeBrowserShutdown()}
+}
+
+function prepareBrowserShutdown(requestId){
+  if(shutdownRequestId===requestId){acknowledgeBrowserShutdown();return}
+  if(shutdownPreparing)cancelBrowserShutdown();
+  shutdownRequestId=requestId;shutdownAcknowledged=false;
+  savedControlStates=[...document.querySelectorAll("button,input,select")].map(el=>[el,el.disabled]);
+  if(!video.paused){video.pause();recordEvent("video_pause",{reason:"session_save",pause_reason:"session_save"});$("pauseBlock").textContent="继续"}
+  cancelActiveProbe("session_save");
+  clearTimeout(conditionPromptTimer);conditionPromptTimer=null;
+  clearInterval(restTimer);
+  shutdownFinalEventId=recordEvent("browser_shutdown_ready",{shutdown_request_id:requestId}).client_event_id;
+  shutdownPreparing=true;
+  savedControlStates.forEach(([el])=>el.disabled=true);
+  $("systemState").textContent="正在保存最后的事件";
+  backup();flushEegQueue();acknowledgeBrowserShutdown();
+}
+async function acknowledgeBrowserShutdown(){
+  if(!shutdownPreparing||shutdownAckBusy||shutdownAcknowledged||eegSending||eegEventQueue.length||!eegEndpoint)return;
+  const unresolved=rejectedEegEvents.filter(item=>!item.event.recorder_run_id||[activeEegSession?.run_id,activeEegSession?.run_directory].includes(item.event.recorder_run_id));
+  if(!deliveredEventIds.has(shutdownFinalEventId))return;
+  shutdownAckBusy=true;
+  const requestId=shutdownRequestId;
+  try{
+    const response=await fetchTimeout(`${eegEndpoint}/shutdown/ready`,{
+      method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({run_id:activeEegSession.run_id,client_id:browserClientId,request_id:requestId,pending:0,last_event_id:shutdownFinalEventId,unresolved_events:unresolved})
+    },3000);
+    if(response.ok&&shutdownRequestId===requestId){shutdownAcknowledged=true;$("systemState").textContent=unresolved.length?"未通过校验的事件已另存恢复文件，正在导出":"事件已保存，采集端正在导出"}
+  }catch(_e){}finally{shutdownAckBusy=false}
+}
+function cancelBrowserShutdown(){
+  shutdownPreparing=false;shutdownRequestId=null;shutdownFinalEventId=null;shutdownAcknowledged=false;
+  savedControlStates.forEach(([el,disabled])=>el.disabled=disabled);savedControlStates=[];
+  if(restStartedPerf!==null)restTimer=setInterval(updateRestClock,1000);
+  $("systemState").textContent="保存已取消，可继续调试或重试保存";
+  refreshStartButton();
+}
+async function waitForEegEvent(eventId,timeoutMs=3500){
+  const deadline=performance.now()+timeoutMs;flushEegQueue();
+  while(performance.now()<deadline){
+    if(deliveredEventIds.has(eventId))return true;
+    await new Promise(resolve=>setTimeout(resolve,50));
+  }
+  return false;
+}
+
+const BACKUP_KEY = "eeg_integrated_experiment_backup_v2";
+
+function iso(){return new Date().toISOString()}
+function relMs(){return blockStartPerf===null ? "" : Math.round(performance.now()-blockStartPerf)}
+function blockNumber(value=$("blockId").value){
+  const n=Number(String(value).match(/\d+/)?.[0]);
+  return Number.isInteger(n)&&n>=1&&n<=6?n:0;
+}
+function updateGroupUi(){
+  const block=blockNumber(),half=block?(block<=3?1:2):0;
+  $("groupState").textContent=half?`${half===1?"上":"下"}半程｜Block ${block}/6`:"阶段待定";
+}
+function log(msg){
+  const t=new Date().toLocaleTimeString("zh-CN",{hour12:false});
+  $("log").textContent += `\n[${t}] ${msg}`;
+  $("log").scrollTop=$("log").scrollHeight;
+}
+function recordEvent(type, detail={}){
+  if(shutdownPreparing)return null;
+  const clientTimestamp=clientClockSeconds();
+  const eventRecord={
+    client_event_id:clientEventId(),
+    recorder_run_id:configAtStart?.recorder_run_id||activeEegSession?.run_id||"",
+    client_id:browserClientId,
+    client_timestamp:clientTimestamp,
+    client_monotonic_ms:performance.now(),
+    event_timestamp:clientTimestamp+(eegClockOffset??0),
+    clock_offset_sec:eegClockOffset,
+    clock_round_trip_ms:eegClockRoundTripMs,
+    subject_id:configAtStart?.subject_id||$("subjectId").value.trim(),
+    session_id:configAtStart?.session_id||$("sessionId").value.trim(),
+    block_id:configAtStart?.block_id||$("blockId").value.trim(),
+    counterbalance_group:activeEegSession?.counterbalance_group||$("counterbalanceGroup").value,
+    block_order:configAtStart?.block_id||$("blockId").value.trim(),
+    condition:conditionAtStart || $("condition").value,
+    condition_type:configAtStart?.condition_type||
+      (conditionAtStart==="A"?"focused":conditionAtStart==="B"?"bbbd_subtraction":""),
+    topic_key:topicAtStart || $("topicSelect").value,
+    topic_name:TOPICS[topicAtStart || $("topicSelect").value]?.name || "",
+    event_type:type,
+    iso_time:iso(),
+    relative_ms:relMs(),
+    video_time_sec:Number.isFinite(video.currentTime)?Number(video.currentTime.toFixed(3)):"",
+    ...detail
+  };
+  events.push(eventRecord);queueEegEvent(eventRecord);
+  backup();
+  return eventRecord;
+}
+function backup(){
+  try{localStorage.setItem(BACKUP_KEY,JSON.stringify({
+    saved_at:iso(),events,quizRecords,ratingRecords,pendingEegEvents:eegEventQueue,rejectedEegEvents,
+    practiceConfirmed,startNumberDisplayedAt,restingAfterBlock,restPlannedDuration,
+    probeSchedule,probeIndex,
+    current:{subject_id:$("subjectId").value,block_id:$("blockId").value,
+      session_id:$("sessionId").value,condition:$("condition").value,topic:$("topicSelect").value,
+      recorder_run_id:activeEegSession?.run_id||"",video_time_sec:Number.isFinite(video.currentTime)?video.currentTime:0}
+  }));}catch(error){log(`浏览器备份失败，当前记录仍在内存中，请保持页面打开并导出：${error.message}`)}
+}
+function formatTime(sec){
+  if(!Number.isFinite(sec)) return "00:00";
+  const m=Math.floor(sec/60),s=Math.floor(sec%60);
+  return `${String(m).padStart(2,"0")}:${String(s).padStart(2,"0")}`;
+}
+function hydrateProtocol(protocol){
+  if(PROTOCOL_CONFIG)return;
+  PROTOCOL_CONFIG=protocol;
+  TOPICS=Object.fromEntries(protocol.materials.videos.map(videoItem=>[
+    videoItem.video_id,
+    {
+      name:videoItem.title,exactFile:videoItem.filename,match:videoItem.match,
+      duration_sec:videoItem.duration_sec,
+      questions:videoItem.questions.map(q=>({question_id:q.question_id,q:q.text,options:q.options,answer:q.answer}))
+    }
+  ]));
+  const probe=protocol.thought_probe;
+  PROBE_QUESTION=probe.question;PROBE_CONFIDENCE_QUESTION=probe.confidence_question;
+  PROBE_OPTIONS=probe.options.map(item=>item.label);PROBE_ATTENTION=probe.options.map(item=>item.attention);
+  PROBE_CONFIG={probes_per_block:probe.probes_per_block,min_first_onset_sec:probe.min_first_onset_sec,
+    min_end_margin_sec:probe.min_end_margin_sec,min_gap_sec:probe.min_gap_sec};
+  populateTopics();buildProbeButtons();renderVideoMatchPanel();updateTopicUi();
+  if(selectedVideoFiles.length)matchSelectedVideos();
+}
+function populateTopics(){
+  $("topicSelect").innerHTML="";
+  Object.entries(TOPICS).forEach(([k,v])=>{
+    const op=document.createElement("option");
+    op.value=k;op.textContent=`${k}：${v.name}`;
+    $("topicSelect").appendChild(op);
+  });
+}
+function fillNumericSelect(id,max){
+  const select=$(id);for(let value=1;value<=max;value++){
+    const option=document.createElement("option");option.value=String(value);option.textContent=String(value);select.appendChild(option);
+  }
+}
+function setupQuestionnaireControls(){
+  fillNumericSelect("courseAttentionRating",5);fillNumericSelect("mentalEffort",9);
+  fillNumericSelect("videoInterest",5);fillNumericSelect("videoDifficulty",5);fillNumericSelect("subtractionDifficulty",5);
+  for(let low=0;low<=90;low+=10){
+    const high=low===90?100:low+10;const option=document.createElement("option");
+    option.value=`${low}-${high}%`;option.textContent=`${low}–${high}%`;$("subtractionCompliance").appendChild(option);
+  }
+  const fields={courseAttentionRating:"course_attention_rating",mentalEffort:"mental_effort",
+    videoInterest:"video_interest",videoDifficulty:"video_difficulty",
+    subtractionCompliance:"subtraction_compliance",subtractionDifficulty:"subtraction_difficulty",
+    reportedFinalNumber:"reported_final_number"};
+  Object.entries(fields).forEach(([id,item])=>$(id).addEventListener("change",()=>{
+    if(!blockFinished||!configAtStart)return;
+    recordEvent("rating_item_response",{rating_item:item,rating_value:$(id).value,
+      response_time_ms:ratingStartedPerf===null?"":Math.round(performance.now()-ratingStartedPerf)});
+  }));
+}
+function conditionText(){
+  return $("condition").value==="A" ? "A｜focused" : "B｜bbbd_subtraction";
+}
+function updateConditionUi(){
+  $("conditionLabel").textContent=conditionText();
+  const isB=$("condition").value==="B";
+  $("bRatingFields").style.display=isB?"block":"none";
+  if(!blockStarted){
+    $("taskSymbol").textContent=isB?"B":"A";
+    $("taskHint").textContent=isB?
+      "视频继续播放，从屏幕给出的数字开始在脑中连续减7；不出声、不持续输入；视频开始后数字消失。":
+      "像正常线上学习一样认真观看，尽量理解和记忆，结束后有课堂理解题。";
+  }
+}
+function updateTopicUi(){
+  const key=$("topicSelect").value;
+  const t=TOPICS[key];
+  if(!t){$("topicLabel").textContent="等待协议配置";return}
+  $("topicLabel").textContent=`专题：${t.name}`;
+  loadMappedVideo(key);
+}
+function clearVideoUrls(){
+  objectUrls.forEach(URL.revokeObjectURL);
+  objectUrls=[];
+}
+function normalizeFilename(name){
+  return String(name || "")
+    .normalize("NFKC")
+    .toLowerCase()
+    .replace(/\s+/g,"")
+    .replace(/[－—]/g,"-");
+}
+function renderVideoMatchPanel(){
+  const panel=$("videoMatchPanel");
+  panel.innerHTML="";
+  const configured=Object.keys(TOPICS).length===6;
+  const entries=configured?Object.entries(TOPICS):Array.from({length:6},(_,index)=>[`V${index+1}`,null]);
+  entries.forEach(([key,t])=>{
+    const item=videoMap.get(key);
+    const div=document.createElement("div");
+    const state=item?"matched":configured&&selectedVideoFiles.length?"unmatched":"loading";
+    div.className=`videoMatchCell ${state}`;
+
+    const top=document.createElement("div");top.className="videoMatchTop";
+    const id=document.createElement("span");id.className="videoMatchId";id.textContent=`视频${key.replace(/\D/g,"")}`;
+    const status=document.createElement("span");status.className="videoMatchStatus";
+    status.textContent=item?"已匹配":"待匹配";
+    top.append(id,status);
+    div.appendChild(top);
+    if(item){
+      const topic=document.createElement("div");topic.className="videoMatchTopic";
+      topic.textContent=t.name;topic.title=topic.textContent;
+      const filename=document.createElement("div");filename.className="videoMatchFile";
+      filename.textContent=item.file.name;filename.title=item.file.name;
+      div.append(topic,filename);
+      const method=document.createElement("div");method.className="videoMatchMethod";
+      method.textContent={exact_filename:"精确文件名",video_number:"按视频编号",topic_keyword:"按专题关键词"}[item.matchedBy]||"已识别";
+      div.appendChild(method);
+    }
+    panel.appendChild(div);
+  });
+}
+function chooseFiles(files){
+  selectedVideoFiles=[...files].filter(f=>f.type.startsWith("video/")||f.name.toLowerCase().endsWith(".mp4"));
+  matchSelectedVideos();
+}
+function matchSelectedVideos(){
+  clearVideoUrls();videoMap.clear();
+  const arr=selectedVideoFiles;
+  const unmatched=[];
+
+  if(Object.keys(TOPICS).length!==6){
+    $("loadedText").textContent=`已选择 ${arr.length} 个视频；等待采集端会话与材料配置，连接后将自动匹配`;
+    log(`已暂存 ${arr.length} 个视频，等待协议配置加载`);
+    renderVideoMatchPanel();
+    refreshStartButton();
+    return;
+  }
+
+  arr.forEach(file=>{
+    let matched=null;
+    let matchedBy="";
+    const normalized=normalizeFilename(file.name);
+
+    // 第一优先级：和六个正式文件名精确匹配
+    for(const [key,t] of Object.entries(TOPICS)){
+      if(normalized===normalizeFilename(t.exactFile)){
+        matched=key;matchedBy="exact_filename";break;
+      }
+    }
+
+    // 第二优先级：稳定的“视频1”到“视频6”编号兜底。即使下载
+    // 工具改了后缀标点或追加“(1)”，仍能得到确定且唯一的映射。
+    if(!matched){
+      const numbered=normalized.match(/^视频([1-6])(?:[^0-9]|$)/);
+      const key=numbered?`V${numbered[1]}`:"";
+      if(key&&TOPICS[key]){matched=key;matchedBy="video_number"}
+    }
+
+    // 第三优先级：专题关键词兜底
+    if(!matched){
+      for(const [key,t] of Object.entries(TOPICS)){
+        if(t.match.some(m=>normalized.includes(normalizeFilename(m)))){
+          matched=key;matchedBy="topic_keyword";break;
+        }
+      }
+    }
+
+    if(matched && TOPICS[matched] && !videoMap.has(matched)){
+      const url=URL.createObjectURL(file);objectUrls.push(url);
+      videoMap.set(matched,{file,url,matchedBy});
+    }else{
+      unmatched.push(file.name);
+    }
+  });
+
+  $("loadedText").textContent=`已匹配 ${videoMap.size}/6 个视频`+
+    (unmatched.length?`；未匹配：${unmatched.join("、")}`:"；六个视频均已正确对应");
+  renderVideoMatchPanel();
+  loadMappedVideo($("topicSelect").value);
+  log(`选择 ${arr.length} 个视频，成功匹配 ${videoMap.size}/6`+
+      (unmatched.length?`，未匹配：${unmatched.join("、")}`:""));
+}
+function loadMappedVideo(key){
+  if(blockStarted)return;
+  const item=videoMap.get(key);
+  video.pause();
+  video.removeAttribute("src");video.load();
+  if(!item){
+    $("videoEmpty").style.display="block";
+    video.style.display="none";
+    refreshStartButton();
+    return;
+  }
+  video.src=item.url;
+  video.style.display="block";
+  $("videoEmpty").style.display="none";
+  refreshStartButton();
+  $("topicLabel").textContent=`专题：${TOPICS[key].name}｜${item.file.name}`;
+  log(`已载入 ${item.file.name}`);
+}
+function showConditionOverlay(){
+  const isA=conditionAtStart==="A";
+  $("overlayTitle").textContent=isA?"A 条件｜focused":"B 条件｜脑内连续减7";
+  $("overlayText").textContent=isA?
+    "像正常线上学习一样认真观看，尽量理解和记忆，结束后有课堂理解题。":
+    "视频继续播放，从屏幕给出的数字开始在脑中连续减7；不出声、不持续输入；视频开始后数字消失。";
+  if(isA){
+    $("startNumberDisplay").style.display="none";
+    $("startNumberDisplay").textContent="";
+    startNumberDisplayedAt=null;
+  }else{
+    $("startNumberDisplay").textContent=String(configAtStart.start_number);
+    $("startNumberDisplay").style.display="block";
+    startNumberDisplayedAt=clientClockSeconds();
+    recordEvent("subtraction_start_number_displayed",{
+      start_number:configAtStart.start_number,
+      generated_timestamp:configAtStart.generated_timestamp,
+      displayed_timestamp:startNumberDisplayedAt
+    });
+  }
+  $("overlay").classList.add("show");
+}
+function hideOverlay(){$("overlay").classList.remove("show")}
+function lockSetup(lock){
+  ["blockId","topicSelect"].forEach(id=>$(id).disabled=lock||Boolean(activeEegSession));
+  ["subjectId","sessionId","condition"].forEach(id=>$(id).disabled=lock||Boolean(activeEegSession));
+  $("chooseVideos").disabled=lock;$("clearVideos").disabled=lock;
+}
+async function startBlock(){
+  if(!video.src){alert("请先选择并载入视频。");return}
+  if(videoMap.size!==6){alert("必须先选择并正确匹配全部6个正式视频。");return}
+  if(!eegEndpoint||!activeEegSession){alert("尚未连接EEG采集端。请先启动Python采集程序，并确认页面右上角显示“EEG已连接”。");return}
+  if(!activeEegSession.qc_ready_for_experiment){alert("采前QC尚未通过或异常尚未确认。请先回到采集窗口完成固定60秒睁眼静息QC。");return}
+  if(activeEegSession.qc?.status==="bad"){alert("当前EEG质量异常或数据已中断，请先重连并排查电极/参考地/供电。");return}
+  const blockNum=blockNumber();
+  const expectedBlock=activeEegSession.planned_blocks[blockNum-1];
+  const expectedCondition=expectedBlock.condition_label;
+  if($("condition").value!==expectedCondition){
+    $("condition").value=expectedCondition;updateConditionUi();
+    alert(`条件校验未通过：${activeEegSession.counterbalance_group} 的 Block ${blockNum} 必须为 ${expectedCondition}。`);return;
+  }
+  if($("topicSelect").value!==expectedBlock.video_id){
+    $("topicSelect").value=expectedBlock.video_id;updateTopicUi();
+    alert(`视频校验未通过：${activeEegSession.counterbalance_group} 的 Block ${blockNum} 必须使用 ${expectedBlock.video_id}。系统已修正，请确认视频后再开始。`);return;
+  }
+  conditionAtStart=$("condition").value;
+  topicAtStart=$("topicSelect").value;
+  const expectedDuration=Number(TOPICS[topicAtStart].duration_sec);
+  if(Number.isFinite(expectedDuration)&&Math.abs(Number(video.duration)-expectedDuration)>2){
+    alert(`视频时长与配置不一致：应约 ${expectedDuration.toFixed(1)} 秒，当前 ${Number(video.duration).toFixed(1)} 秒。`);return;
+  }
+  const conditionInfo=activeEegSession.conditions?.[conditionAtStart]||{};
+  const numberInfo=activeEegSession.b_start_numbers?.[String(blockNum)]||activeEegSession.b_start_numbers?.[blockNum]||{};
+  configAtStart={
+    recorder_run_id:activeEegSession.run_id,
+    subject_id:$("subjectId").value.trim()||"UNKNOWN",
+    session_id:$("sessionId").value.trim()||"UNKNOWN",
+    block_id:$("blockId").value.trim()||"UNKNOWN",
+    counterbalance_group:activeEegSession.counterbalance_group,
+    condition:conditionAtStart,
+    condition_type:conditionInfo.condition_type||(conditionAtStart==="A"?"focused":"bbbd_subtraction"),
+    topic_key:topicAtStart,
+    topic_name:TOPICS[topicAtStart].name,
+    video_file:videoMap.get(topicAtStart)?.file.name||"",
+    start_number:conditionAtStart==="B"?numberInfo.start_number:"",
+    generated_timestamp:conditionAtStart==="B"?numberInfo.generated_timestamp:""
+  };
+  if(conditionAtStart==="B"&&!Number.isInteger(Number(configAtStart.start_number))){
+    alert("采集端尚未提供本Block的减7起始数字，请等待会话信息同步。");return;
+  }
+  try{
+    prepareProbeSchedule();
+    if(!probeSchedule||probeSchedule.times.length!==Number(probeSchedule.config.probes_per_block))throw new Error("无法生成完整probe时间表");
+  }catch(error){alert(`不能开始本Block：${error.message}。请更换或修剪视频。`);return}
+  blockStarted=true;blockFinished=false;blockStartPerf=performance.now();blockStartIso=iso();
+  lockSetup(true);
+  $("startBlock").disabled=true;$("pauseBlock").disabled=false;$("stopBlock").disabled=false;
+  $("systemState").textContent="Block进行中";
+  $("postPanel").classList.remove("show");
+  const startEvent=recordEvent("block_start",{block_start_iso:blockStartIso,config_json:JSON.stringify(configAtStart)});
+  if(!await waitForEegEvent(startEvent.client_event_id)){
+    const queuedIndex=eegEventQueue.findIndex(x=>x.client_event_id===startEvent.client_event_id);
+    if(queuedIndex>=0)eegEventQueue.splice(queuedIndex,1);backup();
+    blockStarted=false;clearProbeState();lockSetup(false);refreshStartButton();
+    alert("Block信息未能同步到EEG采集端，实验未开始。请检查被试编号、G组、视频和连接状态。");return;
+  }
+  recordProbeSchedule();
+  showConditionOverlay();
+  log(`Block开始：${configAtStart.subject_id} ${configAtStart.block_id} ${conditionText()} ${configAtStart.topic_name}`);
+  conditionPromptTimer=setTimeout(playVideoAfterPrompt,5000);
+}
+async function playVideoAfterPrompt(){
+  if(shutdownPreparing||blockFinished||!blockStarted)return;
+  try{
+    await video.play();
+    if(shutdownPreparing){video.pause();return}
+    const hiddenTimestamp=clientClockSeconds();
+    if(conditionAtStart==="B"){
+      $("startNumberDisplay").style.display="none";
+    }
+    hideOverlay();
+    recordEvent("condition_prompt_end",{event_timestamp:hiddenTimestamp});
+    recordEvent("video_play",{event_timestamp:hiddenTimestamp});
+    if(conditionAtStart==="B")recordEvent("subtraction_start_number_hidden",{
+      event_timestamp:hiddenTimestamp,
+      start_number:configAtStart.start_number,
+      generated_timestamp:configAtStart.generated_timestamp,
+      displayed_timestamp:startNumberDisplayedAt,
+      hidden_timestamp:hiddenTimestamp
+    });
+  }catch(e){
+    log("视频自动播放失败，请再次点击开始或检查浏览器权限。");
+    alert("浏览器阻止了播放，请再次点击“开始本Block”。");
+  }
+}
+function probeConfigInUse(){
+  return $("probeFastMode").checked?PROBE_DEBUG_CONFIG:(activeEegSession?.probe_config||PROBE_CONFIG);
+}
+function feasibleProbeCount(durationSec,config){
+  const span=(Number(durationSec)-Number(config.min_end_margin_sec))-Number(config.min_first_onset_sec);
+  if(!Number.isFinite(span)||span<0)return 0;
+  return Math.max(0,Math.min(Number(config.probes_per_block),Math.floor(span/Number(config.min_gap_sec))+1));
+}
+function generateProbeSchedule(durationSec,config=PROBE_CONFIG,random=Math.random){
+  const count=feasibleProbeCount(durationSec,config);
+  if(count<Number(config.probes_per_block))throw new Error(`视频时长不足，无法容纳${config.probes_per_block}个probe`);
+  const first=Number(config.min_first_onset_sec),gap=Number(config.min_gap_sec);
+  const slack=(Number(durationSec)-Number(config.min_end_margin_sec)-first)-(count-1)*gap;
+  // Draw the free time uniformly, then re-insert the minimum gaps in order.
+  const draws=Array.from({length:count},()=>random()*slack).sort((a,b)=>a-b);
+  return draws.map((value,index)=>Number((first+value+index*gap).toFixed(3)));
+}
+function prepareProbeSchedule(){
+  activeProbe=null;probeIndex=0;probeSchedule=null;
+  const config=probeConfigInUse();
+  const duration=Number(video.duration);
+  if(!Number.isFinite(duration)||duration<=0){
+    throw new Error("视频时长尚未读取");
+  }
+  const times=generateProbeSchedule(duration,config);
+  const scheduleId=clientEventId();
+  probeSchedule={
+    probe_schedule_id:scheduleId,
+    // Keeps probe_id unique when a block is repeated during development testing.
+    id_suffix:String(scheduleId).replace(/[^a-z0-9]/gi,"").slice(0,8),
+    block_id:configAtStart?.block_id||$("blockId").value.trim(),
+    video_id:configAtStart?.topic_key||$("topicSelect").value,
+    video_duration_sec:Number(duration.toFixed(3)),
+    times,config,debug_fast:config===PROBE_DEBUG_CONFIG,
+  };
+  updateProbeUi();
+  return probeSchedule;
+}
+function recordProbeSchedule(){
+  if(!probeSchedule)return null;
+  return recordEvent("probe_schedule",{
+    probe_schedule_id:probeSchedule.probe_schedule_id,
+    probe_times:probeSchedule.times,
+    probe_config:probeSchedule.config,
+    video_duration_sec:probeSchedule.video_duration_sec,
+    video_id:probeSchedule.video_id,
+    debug_fast:probeSchedule.debug_fast,
+  });
+}
+function updateProbeUi(){
+  const total=probeSchedule?probeSchedule.times.length:0;
+  const remaining=Math.max(0,total-probeIndex);
+  $("probeState").textContent=total?
+    `probe：已完成 ${probeIndex}/${total}｜下一个 ${remaining?formatTime(probeSchedule.times[probeIndex]):"无"}`:
+    "probe：未安排";
+  $("forceProbe").disabled=!(remaining&&!activeProbe&&blockStarted&&!blockFinished);
+}
+function maybeTriggerProbe(){
+  if(!probeSchedule||activeProbe||eegDropoutPaused||shutdownPreparing||!blockStarted||blockFinished)return;
+  // Probe time is read from the video clock, so a paused video cannot advance it.
+  if(video.paused||probeIndex>=probeSchedule.times.length)return;
+  const current=Number(video.currentTime);
+  if(!Number.isFinite(current)||current<probeSchedule.times[probeIndex])return;
+  startProbe();
+}
+function probeFields(probe){
+  return {
+    probe_id:probe.probe_id,probe_index:probe.probe_index,
+    probe_schedule_id:probeSchedule?.probe_schedule_id||"",
+    probe_planned_time_sec:probe.probe_planned_time_sec,
+    video_id:probeSchedule?.video_id||configAtStart?.topic_key||"",
+  };
+}
+function startProbe(options={}){
+  if(!probeSchedule||activeProbe||probeIndex>=probeSchedule.times.length)return null;
+  if(shutdownPreparing||!blockStarted||blockFinished)return null;
+  video.pause();
+  activeProbe={
+    probe_id:`${probeSchedule.block_id}_${probeIndex+1}_${probeSchedule.id_suffix}`,
+    probe_index:probeIndex+1,
+    probe_planned_time_sec:probeSchedule.times[probeIndex],
+    onset_perf:performance.now(),
+    confidence_perf:null,
+    response:null,
+  };
+  $("probeQuestion").textContent=PROBE_QUESTION;
+  $("confidenceQuestion").textContent=PROBE_CONFIDENCE_QUESTION;
+  $("confidenceSection").style.display="none";
+  $("probeHint").textContent="第一问必须作答后才能进入下一步。";
+  $("probePanel").classList.add("show");
+  $("systemState").textContent="thought probe：请作答";
+  setProbeButtonsEnabled(true);
+  const record=recordEvent("probe_onset",{
+    ...probeFields(activeProbe),pause_reason:"thought_probe",forced:Boolean(options.forced),
+  });
+  updateProbeUi();
+  log(`thought probe ${activeProbe.probe_id} 触发，视频已暂停`);
+  return record;
+}
+function answerProbeAttention(response){
+  if(!activeProbe||activeProbe.response!==null)return null;
+  const value=Number(response);
+  if(!Number.isInteger(value)||value<1||value>PROBE_OPTIONS.length)return null;
+  activeProbe.response=value;
+  activeProbe.confidence_perf=performance.now();
+  const record=recordEvent("attention_response",{
+    ...probeFields(activeProbe),
+    response:value,response_label:PROBE_OPTIONS[value-1],
+    probe_attention:PROBE_ATTENTION[value-1],
+    response_time_ms:Math.round(activeProbe.confidence_perf-activeProbe.onset_perf),
+  });
+  setProbeButtonsEnabled(false);
+  $("confidenceSection").style.display="block";
+  $("probeHint").textContent="请选择1～4的确定程度，提交后视频自动继续。";
+  return record;
+}
+function submitProbeConfidence(value){
+  if(!activeProbe)return null;
+  if(activeProbe.response===null){$("probeHint").textContent="请先回答第一个问题。";return null}
+  const confidence=Number(value);
+  if(!Number.isInteger(confidence)||confidence<1||confidence>CONFIDENCE_LABELS.length)return null;
+  const probe=activeProbe;
+  const record=recordEvent("confidence_response",{
+    ...probeFields(probe),response:probe.response,confidence,
+    response_time_ms:Math.round(performance.now()-probe.confidence_perf),
+  });
+  activeProbe=null;probeIndex+=1;
+  $("probePanel").classList.remove("show");
+  $("confidenceSection").style.display="none";
+  updateProbeUi();
+  resumeVideoAfterProbe(probe);
+  return record;
+}
+async function resumeVideoAfterProbe(probe){
+  if(shutdownPreparing||!blockStarted||blockFinished)return null;
+  let status="playing";
+  try{await video.play()}catch(_e){
+    status="play_blocked";$("pauseBlock").textContent="继续";
+    log("probe结束后自动继续播放被浏览器阻止，请点击“继续”。");
+  }
+  const record=recordEvent("video_resume",{
+    ...probeFields(probe),pause_reason:"thought_probe",resume_status:status,
+  });
+  $("systemState").textContent="Block进行中";
+  return record;
+}
+function cancelActiveProbe(reason){
+  if(!activeProbe)return null;
+  const probe=activeProbe;activeProbe=null;
+  $("probePanel").classList.remove("show");
+  $("confidenceSection").style.display="none";
+  const record=recordEvent("probe_cancelled",{...probeFields(probe),reason});
+  updateProbeUi();
+  return record;
+}
+function clearProbeState(){
+  activeProbe=null;probeSchedule=null;probeIndex=0;
+  $("probePanel").classList.remove("show");
+  $("confidenceSection").style.display="none";
+  updateProbeUi();
+}
+function setProbeButtonsEnabled(enabled){
+  [...$("probeOptions").children||[]].forEach(button=>button.disabled=!enabled);
+}
+function buildProbeButtons(){
+  const add=(containerId,labels,handler)=>labels.forEach((text,index)=>{
+    const button=document.createElement("button");
+    button.type="button";button.className="btn probeBtn";
+    button.dataset.value=String(index+1);button.textContent=text;
+    button.onclick=()=>handler(index+1);
+    $(containerId).appendChild(button);
+  });
+  add("probeOptions",PROBE_OPTIONS.map((text,index)=>`${index+1}. ${text}`),answerProbeAttention);
+  add("confidenceOptions",CONFIDENCE_LABELS,submitProbeConfidence);
+}
+function pauseBlock(){
+  if(shutdownPreparing)return;
+  if(activeProbe){log("thought probe 作答期间不能手动继续播放。");return}
+  if(eegDropoutPaused){
+    if(activeEegSession?.qc?.signal_alive!==true){log("EEG尚未恢复，不能继续视频。");return}
+    recordEvent("eeg_recovery_confirmed",{pause_reason:"eeg_dropout"});
+    eegDropoutPaused=false;
+    video.play();$("pauseBlock").textContent="暂停";
+    recordEvent("video_resume",{pause_reason:"eeg_dropout"});
+    log("实验员已确认EEG恢复与同步，视频继续");return;
+  }
+  if(video.paused){
+    video.play();$("pauseBlock").textContent="暂停";recordEvent("video_resume",{pause_reason:"manual"});
+  }else{
+    video.pause();$("pauseBlock").textContent="继续";recordEvent("video_pause",{pause_reason:"manual"});
+  }
+}
+function finishBlock(reason){
+  if(shutdownPreparing||!blockStarted||blockFinished)return;
+  clearTimeout(conditionPromptTimer);conditionPromptTimer=null;
+  cancelActiveProbe(reason);
+  blockFinished=true;video.pause();hideOverlay();$("startNumberDisplay").style.display="none";
+  updateProbeUi();
+  recordEvent("block_end",{reason});
+  $("pauseBlock").disabled=true;$("stopBlock").disabled=true;
+  $("systemState").textContent="填写评分与测验";
+  $("playState").textContent="已结束";
+  $("taskSymbol").textContent="完成";
+  $("taskHint").textContent="请完成下方注意力评分和专题测验。";
+  $("postPanel").classList.add("show");
+  $("ratingSection").style.display="block";$("quizSection").style.display="none";
+  ratingStartedPerf=performance.now();
+  recordEvent("rating_start");
+  window.scrollTo({top:$("postPanel").offsetTop-20,behavior:"smooth"});
+  log(`Block结束：${reason}`);
+  backup();
+}
+function resetBlock(){
+  const completedBlock=blockNumber(configAtStart?.block_id||$("blockId").value);
+  const nextBlock=completedBlock<6?completedBlock+1:6;
+  video.pause();video.currentTime=0;hideOverlay();$("startNumberDisplay").style.display="none";
+  blockStarted=false;blockFinished=false;blockStartPerf=null;blockStartIso=null;
+  conditionAtStart=null;topicAtStart=null;configAtStart=null;startNumberDisplayedAt=null;
+  clearProbeState();
+  if(completedBlock<6){
+    $("blockId").value=String(nextBlock);
+    const topicKeys=Object.keys(TOPICS);
+    if(topicKeys[nextBlock-1])$("topicSelect").value=topicKeys[nextBlock-1];
+  }
+  lockSetup(false);
+  refreshStartButton();
+  $("pauseBlock").disabled=true;$("pauseBlock").textContent="暂停";$("stopBlock").disabled=true;
+  $("postPanel").classList.remove("show");$("summary").classList.remove("show");
+  $("restSection").classList.remove("show");
+  $("ratingSection").style.display="block";$("quizSection").style.display="none";
+  $("systemState").textContent="准备阶段";$("playState").textContent="未开始";
+  $("newBlock").disabled=true;$("newBlock").textContent="准备下一Block";
+  ["courseAttentionRating","mentalEffort","videoInterest","videoDifficulty","subtractionCompliance","subtractionDifficulty"].forEach(id=>$(id).value="");
+  $("reportedFinalNumber").value="";ratingStartedPerf=null;quizStartedPerf=null;quizAnswerTimes={};
+  if(activeEegSession&&nextBlock>=1&&nextBlock<=6){
+    const planned=activeEegSession.planned_blocks[nextBlock-1];
+    $("condition").value=planned.condition_label;$("topicSelect").value=planned.video_id;
+  }
+  updateGroupUi();updateConditionUi();updateTopicUi();
+  log(`已准备 Block ${nextBlock}`);
+}
+
+function updateRestClock(){
+  if(restStartedPerf===null)return;
+  const elapsed=Math.floor((performance.now()-restStartedPerf)/1000);
+  const remaining=Math.max(0,Number(restPlannedDuration||0)-elapsed);
+  $("restClock").textContent=`剩余 ${formatTime(remaining)}｜已休息 ${formatTime(elapsed)}`;
+  const maySkip=activeEegSession?.study_phase==="smoke";
+  $("endRest").disabled=!(remaining===0||maySkip);
+  $("endRest").textContent=remaining===0?"休息完成，进入下一Block":maySkip?"Smoke调试：提前结束":"倒计时结束后继续";
+}
+function plannedRestAfterBlock(blockId){
+  return Number(activeEegSession?.rest_durations_after_block_sec?.[String(blockId)]||
+    activeEegSession?.rest_durations_after_block_sec?.[blockId]||({1:30,2:30,3:180,4:30,5:30})[blockId]||0);
+}
+function beginBlockRest(afterBlockId){
+  restingAfterBlock=afterBlockId;restPlannedDuration=plannedRestAfterBlock(afterBlockId);restStartedPerf=performance.now();
+  $("restTitle").textContent=`Block ${afterBlockId} 完成｜休息 ${restPlannedDuration} 秒`;
+  $("restInstruction").textContent=activeEegSession?.study_phase==="smoke"?"Smoke调试允许提前结束；正式流程必须等待倒计时。":"请按计划休息；倒计时结束前不能继续。";
+  $("endRest").disabled=activeEegSession?.study_phase!=="smoke";
+  $("restSection").classList.add("show");
+  $("systemState").textContent=`Block ${afterBlockId} 后休息中`;
+  updateRestClock();clearInterval(restTimer);restTimer=setInterval(updateRestClock,1000);
+  recordEvent("rest_start",{
+    after_block_id:afterBlockId,planned_duration:restPlannedDuration,actual_duration:"",
+    is_formal_experiment:0
+  });
+  log(`Block ${afterBlockId} 后开始休息，计划 ${restPlannedDuration} 秒`);
+}
+function finishBlockRest(){
+  if(restStartedPerf===null||restingAfterBlock===null)return;
+  const durationSec=Number(((performance.now()-restStartedPerf)/1000).toFixed(3));
+  if(durationSec+0.25<Number(restPlannedDuration)&&activeEegSession?.study_phase!=="smoke")return;
+  recordEvent("rest_end",{
+    after_block_id:restingAfterBlock,planned_duration:restPlannedDuration,
+    actual_duration:durationSec,duration_sec:durationSec,is_formal_experiment:0,
+    debug_early:durationSec<Number(restPlannedDuration)
+  });
+  log(`Block ${restingAfterBlock} 后休息结束，实际 ${durationSec} 秒`);
+  clearInterval(restTimer);restTimer=null;restStartedPerf=null;restingAfterBlock=null;restPlannedDuration=null;
+  resetBlock();
+}
+function buildQuiz(){
+  const t=TOPICS[topicAtStart];
+  $("quizContainer").innerHTML="";
+  quizStartedPerf=performance.now();quizAnswerTimes={};
+  recordEvent("quiz_start");
+  t.questions.forEach((q,qi)=>{
+    const div=document.createElement("div");div.className="quizQ";
+    div.innerHTML=`<div class="quizStem">${qi+1}. ${q.q}</div>`+
+      q.options.map((op,oi)=>`<label class="option"><input type="radio" name="quiz_${qi}" value="${oi}">${String.fromCharCode(65+oi)}. ${op}</label>`).join("");
+    $("quizContainer").appendChild(div);
+    div.querySelectorAll("input").forEach(input=>input.addEventListener("change",()=>{
+      quizAnswerTimes[qi]=performance.now();
+    }));
+  });
+}
+function submitRating(){
+  const required=["courseAttentionRating","mentalEffort","videoInterest","videoDifficulty"];
+  if(required.some(id=>!$(id).value)){alert("请完成四项标准评分。");return}
+  const isB=conditionAtStart==="B";
+  if(isB&&(!$("subtractionCompliance").value||!$("subtractionDifficulty").value||$("reportedFinalNumber").value==="")){
+    alert("B条件还须完成减7持续比例、难度和最后数字。");return;
+  }
+  if(isB&&!Number.isInteger(Number($("reportedFinalNumber").value))){alert("最后数字必须是整数。");return}
+  const ratingRec={
+    subject_id:configAtStart.subject_id,block_id:configAtStart.block_id,
+    block_order:configAtStart.block_id,counterbalance_group:configAtStart.counterbalance_group,
+    condition:conditionAtStart,condition_type:configAtStart.condition_type,
+    topic_key:topicAtStart,topic_name:TOPICS[topicAtStart].name,
+    video_id:topicAtStart,
+    course_attention_rating:Number($("courseAttentionRating").value),
+    mental_effort:Number($("mentalEffort").value),
+    video_interest:Number($("videoInterest").value),
+    video_difficulty:Number($("videoDifficulty").value),
+    subtraction_compliance:isB?$("subtractionCompliance").value:"",
+    subtraction_difficulty:isB?Number($("subtractionDifficulty").value):"",
+    reported_final_number:isB?Number($("reportedFinalNumber").value):"",
+    duration_sec:ratingStartedPerf===null?"":Number(((performance.now()-ratingStartedPerf)/1000).toFixed(3)),
+    submitted_iso:iso(),submitted_relative_ms:relMs()
+  };
+  ratingRecords.push(ratingRec);
+  recordEvent("rating_end",ratingRec);
+  $("ratingSection").style.display="none";$("quizSection").style.display="block";
+  buildQuiz();backup();
+}
+function submitQuiz(){
+  const t=TOPICS[topicAtStart];let score=0;
+  for(let i=0;i<t.questions.length;i++){
+    const checked=document.querySelector(`input[name="quiz_${i}"]:checked`);
+    if(!checked){alert(`请完成第 ${i+1} 题。`);return}
+  }
+  t.questions.forEach((q,i)=>{
+    const checked=document.querySelector(`input[name="quiz_${i}"]:checked`);
+    const response=Number(checked.value),correct=response===q.answer;if(correct)score++;
+    const quizRec={
+      subject_id:configAtStart.subject_id,block_id:configAtStart.block_id,
+      block_order:configAtStart.block_id,counterbalance_group:configAtStart.counterbalance_group,
+      condition:conditionAtStart,condition_type:configAtStart.condition_type,
+      topic_key:topicAtStart,topic_name:t.name,video_id:topicAtStart,
+      question_id:q.question_id||`${topicAtStart}Q${i+1}`,
+      question_text:q.q,response_index:response,response_letter:String.fromCharCode(65+response),
+      response_text:q.options[response],correct_index:q.answer,
+      correct_letter:String.fromCharCode(65+q.answer),correct_text:q.options[q.answer],
+      is_correct:correct,
+      reaction_time_ms:Math.round((quizAnswerTimes[i]||performance.now())-quizStartedPerf),
+      submitted_iso:iso(),submitted_relative_ms:relMs()
+    };
+    quizRecords.push(quizRec);recordEvent("quiz_item_response",quizRec);
+  });
+  const completedBlock=blockNumber(configAtStart.block_id);
+  recordEvent("quiz_end",{score,total:t.questions.length,
+    duration_sec:quizStartedPerf===null?"":Number(((performance.now()-quizStartedPerf)/1000).toFixed(3))});
+  $("quizSection").style.display="none";
+  let nextInstruction="";
+  if(completedBlock<6){
+    const planned=plannedRestAfterBlock(completedBlock);
+    nextInstruction=`进入 ${planned} 秒 Block 间休息。`;
+    $("newBlock").disabled=true;
+  }else{
+    nextInstruction="六个 Block 已完成，正在显示结束完整性预检查；关闭采集端时会生成权威 session_qc_report.json。";
+    $("newBlock").disabled=true;
+    $("newBlock").textContent="实验已完成";
+  }
+  $("summary").innerHTML=`<b>Block ${completedBlock} 已完成。</b><br>专题：${t.name}<br>课后题得分：${score}/${t.questions.length}<br>${nextInstruction}`;
+  $("summary").classList.add("show");
+  $("systemState").textContent=completedBlock===6?"六个Block完成｜结束检查":"Block完成";
+  $("exportCsv").disabled=false;$("exportJson").disabled=false;
+  log(`专题测验提交：${score}/${t.questions.length}`);
+  if(completedBlock<6)beginBlockRest(completedBlock);
+  else showIntegrityPrecheck();
+  backup();
+}
+
+function showIntegrityPrecheck(){
+  const probeComplete=events.filter(event=>event.event_type==="video_resume"&&event.pause_reason==="thought_probe").length;
+  const blockCount=new Set(events.filter(event=>event.event_type==="block_end").map(event=>event.block_id)).size;
+  const actual={blocks:blockCount,probes:probeComplete,ratings:ratingRecords.length,quiz_responses:quizRecords.length};
+  const problems=[];
+  if(actual.blocks!==6)problems.push(`Block ${actual.blocks}/6`);
+  if(actual.probes!==24)problems.push(`probe ${actual.probes}/24`);
+  if(actual.ratings!==6)problems.push(`问卷 ${actual.ratings}/6`);
+  if(actual.quiz_responses!==24)problems.push(`课堂题 ${actual.quiz_responses}/24`);
+  const status=problems.length?"FAIL":"PASS";
+  $("integritySection").innerHTML=`<b>结束预检查：${status}</b><br>${problems.length?problems.join("；"):"6个Block、24个probe、6份问卷、24道题均完整。"}`;
+  $("integritySection").classList.add("show");
+  recordEvent("session_integrity_precheck",{event_value:status,notes:problems.join(";")});
+}
+function allRows(){
+  const rows=[];
+  events.forEach(x=>rows.push({record_type:"event",...x}));
+  ratingRecords.forEach(x=>rows.push({record_type:"rating",...x}));
+  quizRecords.forEach(x=>rows.push({record_type:"quiz",...x}));
+  return rows;
+}
+function esc(v){
+  if(v===null||v===undefined)return"";
+  const s=typeof v==="object"?JSON.stringify(v):String(v);
+  return /[",\n]/.test(s)?`"${s.replace(/"/g,'""')}"`:s;
+}
+function exportCsv(){
+  const rows=allRows();if(!rows.length)return;
+  const headers=[...new Set(rows.flatMap(r=>Object.keys(r)))];
+  const text="\uFEFF"+[headers.join(","),...rows.map(r=>headers.map(h=>esc(r[h])).join(","))].join("\n");
+  downloadBlob(text,"text/csv;charset=utf-8",filename("csv"));
+  recordEvent("export_csv");
+}
+function exportJson(){
+  const payload={exported_at:iso(),events,ratings:ratingRecords,quiz:quizRecords,pendingEegEvents:eegEventQueue,rejectedEegEvents};
+  downloadBlob(JSON.stringify(payload,null,2),"application/json;charset=utf-8",filename("json"));
+  recordEvent("export_json");
+}
+function filename(ext){
+  const s=($("subjectId").value||"UNKNOWN").replace(/[^\w\u4e00-\u9fa5-]/g,"_");
+  const b=($("blockId").value||"UNKNOWN").replace(/[^\w\u4e00-\u9fa5-]/g,"_");
+  return `EEG实验_${s}_${b}_${new Date().toISOString().replace(/[:.]/g,"-")}.${ext}`;
+}
+function downloadBlob(text,type,name){
+  const blob=new Blob([text],{type});const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+  log(`已导出 ${name}`);
+}
+function syncMark(){
+  recordEvent("manual_sync_mark",{key:"S"});
+  $("systemState").textContent="已记录同步标记";
+  setTimeout(()=>$("systemState").textContent=blockStarted&&!blockFinished?"Block进行中":"准备阶段",600);
+  log("记录手动同步标记");
+}
+function clearAll(){
+  if(!confirm("确定清除当前浏览器中的全部实验记录吗？请先完成导出。"))return;
+  events.length=0;quizRecords.length=0;ratingRecords.length=0;
+  localStorage.removeItem(BACKUP_KEY);$("exportCsv").disabled=true;$("exportJson").disabled=true;
+  log("全部记录已清除");
+}
+video.addEventListener("timeupdate",()=>{
+  $("videoTime").textContent=`${formatTime(video.currentTime)} / ${formatTime(video.duration)}`;
+  maybeTriggerProbe();
+});
+video.addEventListener("play",()=>{
+  // The video must never resume behind a probe that is still waiting for answers.
+  if(activeProbe){video.pause();return}
+  $("playState").textContent="播放中";
+});
+video.addEventListener("pause",()=>{if(!video.ended)$("playState").textContent="暂停"});
+video.addEventListener("ended",()=>{recordEvent("video_ended");finishBlock("视频自然播放结束")});
+video.addEventListener("error",()=>log("视频载入或播放错误"));
+
+document.addEventListener("keydown",e=>{
+  if(shutdownPreparing)return;
+  if(e.repeat)return;
+  const k=e.key.toLowerCase();
+  if(k==="s"){syncMark();return}
+  if(k==="k"&&blockStarted&&!blockFinished&&!activeProbe){
+    const meaning=conditionAtStart==="A"?
+      "意识到注意已离开课程，现回到视频":
+      "意识到已停止减7并转向课程，现重新开始心算";
+    recordEvent("self_caught",{key:"K",meaning,
+      exclude_before_sec:PROTOCOL_CONFIG?.flow?.self_caught_motor_mask_before_sec||2,
+      exclude_after_sec:PROTOCOL_CONFIG?.flow?.self_caught_motor_mask_after_sec||2,
+      sensitivity_exclude_before_sec:PROTOCOL_CONFIG?.flow?.self_caught_sensitivity_before_sec||10});
+    $("systemState").textContent="已记录 self-caught";
+    setTimeout(()=>$("systemState").textContent="Block进行中",700);
+    log(`self-caught：${meaning}`);return;
+  }
+});
+
+$("chooseVideos").onclick=()=>$("videoFiles").click();
+$("videoFiles").onchange=e=>chooseFiles(e.target.files);
+$("clearVideos").onclick=()=>{selectedVideoFiles=[];clearVideoUrls();videoMap.clear();$("videoFiles").value="";$("loadedText").textContent="尚未选择视频";renderVideoMatchPanel();loadMappedVideo($("topicSelect").value)};
+$("condition").onchange=updateConditionUi;
+$("blockId").oninput=()=>{
+  if(!activeEegSession||blockStarted)return;
+  const n=blockNumber();
+  if(n>=1&&n<=6){
+    const planned=activeEegSession.planned_blocks[n-1];
+    $("condition").value=planned.condition_label;$("topicSelect").value=planned.video_id;
+    updateConditionUi();updateTopicUi();
+  }
+  updateGroupUi();
+};
+$("topicSelect").onchange=updateTopicUi;
+$("startBlock").onclick=startBlock;
+$("pauseBlock").onclick=pauseBlock;
+$("stopBlock").onclick=()=>finishBlock("实验员紧急结束");
+$("syncMark").onclick=syncMark;
+$("submitRating").onclick=submitRating;
+$("submitQuiz").onclick=submitQuiz;
+$("exportCsv").onclick=exportCsv;
+$("exportJson").onclick=exportJson;
+$("newBlock").onclick=resetBlock;
+$("endRest").onclick=finishBlockRest;
+$("forceProbe").onclick=()=>{
+  if(!probeSchedule||activeProbe||probeIndex>=probeSchedule.times.length)return;
+  probeSchedule.times[probeIndex]=Number.isFinite(video.currentTime)?Number(video.currentTime.toFixed(3)):0;
+  startProbe({forced:true});
+};
+$("probeFastMode").onchange=()=>{
+  if(blockStarted){log("Block进行中，快速probe设置将在下一个Block生效。");return}
+  log($("probeFastMode").checked?"已开启调试快速probe配置":"已恢复正式probe配置");
+};
+$("confirmPractice").onclick=confirmSubtractionPractice;
+$("clearAll").onclick=clearAll;
+
+window.addEventListener("beforeunload",e=>{
+  backup();
+  if(blockStarted&&!blockFinished){e.preventDefault();e.returnValue=""}
+});
+
+setupQuestionnaireControls();updateGroupUi();updateConditionUi();updateTopicUi();updateProbeUi();renderVideoMatchPanel();discoverEegRecorder();
+const old=localStorage.getItem(BACKUP_KEY);
+if(old){try{const b=JSON.parse(old);if((b.events||[]).length)log(`发现本地备份，保存时间：${b.saved_at}`);events.push(...(b.events||[]));quizRecords.push(...(b.quizRecords||[]));ratingRecords.push(...(b.ratingRecords||[]));rejectedEegEvents.push(...(b.rejectedEegEvents||[]));(b.pendingEegEvents||[]).forEach(x=>eegEventQueue.push(x));flushEegQueue()}catch(e){}}
+</script>
+</body>
+</html>

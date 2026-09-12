@@ -1,0 +1,6 @@
+subject_id,session_id,run_id,counterbalance_group,block_id,block_order,video_id,condition_label,condition_type,course_attention_rating,mental_effort,video_interest,video_difficulty,subtraction_compliance,subtraction_compliance_low_pct,subtraction_compliance_high_pct,subtraction_difficulty,reported_final_number,duration_sec,recorder_timestamp,device_sample_number
+synthetic-complete,ses-validation,synthetic-run,G01,1,1,V1,A,focused,4,5,4,3,,,,,,,1800000000.1799998,44
+synthetic-complete,ses-validation,synthetic-run,G01,2,2,V2,B,bbbd_subtraction,4,5,4,3,70-80%,70,80,3,137,,1800000000.4099996,102
+synthetic-complete,ses-validation,synthetic-run,G01,3,3,V3,A,focused,4,5,4,3,,,,,,,1800000000.6399994,159
+synthetic-complete,ses-validation,synthetic-run,G01,4,4,V4,B,bbbd_subtraction,4,5,4,3,70-80%,70,80,3,137,,1800000000.8699992,217
+synthetic-complete,ses-validation,synthetic-run,G01,5,5,V5,A,focused,4,5,4,3,,,,,,,1800000001.099999,274
