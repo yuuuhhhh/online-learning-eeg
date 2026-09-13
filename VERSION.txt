@@ -1,17 +1,17 @@
 线上学习 EEG 一体化实验系统
-software_version: 2.1.0
+software_version: 2.1.1
 protocol_version: 2.1
 schema_version: 2.1.0
-config_version: 2.1-pilot-2026-09-12
-发布日期: 2026-09-12
+config_version: 2.1-pilot-2026-09-13-short-session
+发布日期: 2026-09-13
 状态: pilot 前验收版；formal 已锁定
 
 本版完成：
 - 新 BBBD 脑内连续减7范式和练习门禁
 - G01-G12 视频×条件×位置平衡
 - 每 block 4 个 thought probe、confidence 和 self-caught
-- 完整问卷、每视频 4 道题、30/30/180/30/30 秒休息
-- 固定 60 秒睁眼静息 QC、2 秒 EEG 中断自动暂停/人工恢复
+- 完整问卷、每视频 4 道题、Block 1–5 后均为 30 秒休息
+- 固定 30 秒睁眼静息 QC、2 秒 EEG 中断自动暂停/人工恢复
 - 规范化行为表、双层标签窗口、会话完整性报告和 MAT 导出
 - 版本化协议配置与 SHA-256 可追溯性
 - 六段 2026-09-12 新课堂视频和新题库

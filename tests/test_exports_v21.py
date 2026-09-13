@@ -63,7 +63,7 @@ class ExportTests(unittest.TestCase):
             pd.DataFrame(columns=["device_sample_number"]).to_csv(session / "eeg.csv", index=False)
             pd.DataFrame().to_csv(session / "qc.csv", index=False)
             (session / "metadata.json").write_text(json.dumps({
-                "run_id": "run-x", "software_version": "2.1.0", "protocol_version": "2.1",
+                "run_id": "run-x", "software_version": "2.1.1", "protocol_version": "2.1",
                 "protocol_config_version": "test", "session": {
                     "sample_rate_hz": 250, "counterbalance_group": "G01", "study_phase": "pilot",
                     "b_start_numbers": {}, "baseline_override": False,

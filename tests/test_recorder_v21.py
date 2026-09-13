@@ -49,14 +49,14 @@ class RecorderTests(unittest.TestCase):
         self.rec.baseline_passed = True
         self.rec._cached_qc = {"status": "good", "signal_alive": True, "messages": [], "channels": []}
 
-    def test_baseline_is_fixed_to_sixty_seconds_and_practice_gated(self):
+    def test_baseline_is_fixed_to_thirty_seconds_and_practice_gated(self):
         with self.assertRaisesRegex(RuntimeError, "连续减7练习"):
-            self.rec.start_baseline(60)
-        self.rec.subtraction_practice["confirmed"] = True
-        with self.assertRaisesRegex(ValueError, "固定为60秒"):
             self.rec.start_baseline(30)
-        self.rec.start_baseline(60)
-        self.assertEqual(self.rec.baseline_target_sec, 60)
+        self.rec.subtraction_practice["confirmed"] = True
+        with self.assertRaisesRegex(ValueError, "固定为30秒"):
+            self.rec.start_baseline(60)
+        self.rec.start_baseline(30)
+        self.assertEqual(self.rec.baseline_target_sec, 30)
 
     def test_three_unique_prime_start_numbers_are_pre_generated(self):
         values = [item["start_number"] for item in self.rec.b_start_numbers.values()]

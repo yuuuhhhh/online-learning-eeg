@@ -1,10 +1,10 @@
 {
   "status": "PASS",
   "generated_for_run_id": "synthetic-complete",
-  "software_version": "2.1.0",
+  "software_version": "2.1.1",
   "protocol_version": "2.1",
-  "protocol_config_version": "2.1-pilot-2026-09-12",
-  "protocol_config_sha256": "663a0f51d1da30bab4a081528773463accd559bc623fc460e3433d1253a539d3",
+  "protocol_config_version": "2.1-pilot-2026-09-13-short-session",
+  "protocol_config_sha256": "abc08c3d7be3c9f83138b1b5595bca2664f9e6b5bfe58bda3f23dd891177a7fb",
   "counterbalance_group": "G01",
   "study_phase": "formal",
   "expected": {

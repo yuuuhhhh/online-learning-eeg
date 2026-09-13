@@ -560,10 +560,10 @@ class ExperimentRecorder:
     def qc_ready_for_experiment(self) -> bool:
         return self.baseline_complete and (self.baseline_passed or self.baseline_override)
 
-    def start_baseline(self, duration_sec: float = 60.0) -> None:
+    def start_baseline(self, duration_sec: float = 30.0) -> None:
         duration_sec = float(duration_sec)
         if duration_sec != float(PROTOCOL_CONFIG["flow"]["baseline_duration_sec"]):
-            raise ValueError("正式协议的采前睁眼静息基线固定为60秒")
+            raise ValueError("正式协议的采前睁眼静息基线固定为30秒")
         with self._lock:
             if not self._active:
                 raise RuntimeError("Session has not started")

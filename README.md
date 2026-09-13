@@ -12,8 +12,8 @@
 - 每个 block 预生成 4 个 probe。首个不早于 45 秒、末个距结尾至少 30 秒、相邻至少 45 秒；无法容纳 4 个时禁止开始。
 - `K` 为 self-caught 标记键；导出中提供 ±2 秒 motor mask 和按键前 10 秒 sensitivity mask。
 - 每个 block 后填写 4 个通用量表；B 额外填写减 7 执行比例、难度和最终数字；每段视频有 4 道四选一理解题。
-- 休息顺序固定为 30、30、180、30、30 秒。pilot/formal 不能提前结束休息。
-- 采前 QC 固定为 60 秒睁眼静息；人工放行必须记录实验员和原因。
+- Block 1–5 后的休息均固定为 30 秒。pilot/formal 不能提前结束休息。
+- 采前 QC 固定为 30 秒睁眼静息；人工放行必须记录实验员和原因。
 - 连续约 2 秒没有新 EEG 时，视频自动暂停；数据恢复后须由实验员确认同步再继续。
 - 结束时生成 `probes.csv`、`block_ratings.csv`、`quiz_responses.csv`、`probe_epochs.csv`、`windows.csv`、`session_qc_report.json` 和 `session.mat`。
 
@@ -37,7 +37,7 @@
 2. 双击 `start_integrated_experiment.cmd`。
 3. 在采集窗口填写匿名被试号、会话号、研究阶段和实验员编号；采用系统推荐的 G 组。
 4. 网页一次选择 `materials/videos/` 下的全部六段视频，系统会按配置自动匹配并核对时长。
-5. 先完成减 7 练习确认，再连接设备并完成固定 60 秒睁眼静息 QC。
+5. 先完成减 7 练习确认，再连接设备并完成固定 30 秒睁眼静息 QC。
 6. 严格按 Block 1–6 运行；每个 block 的视频和条件由 G 组锁定。
 7. Block 6 完成后查看网页预检查；保持网页打开，再关闭采集窗口，等待权威文件全部落盘。
 

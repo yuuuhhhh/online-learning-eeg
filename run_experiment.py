@@ -531,7 +531,7 @@ class ExperimentApp:
 
         controls = ttk.Frame(qc)
         controls.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
-        ttk.Label(controls, text="采前基线：固定60秒，睁眼、坐稳、尽量不动").pack(side="left")
+        ttk.Label(controls, text="采前基线：固定30秒，睁眼、坐稳、尽量不动").pack(side="left")
         ttk.Button(controls, text="开始采前QC", command=self.start_baseline_qc).pack(side="left", padx=8)
         self.qc_override_button = ttk.Button(
             controls, text="已排查异常，人工确认继续", command=self.approve_baseline_qc, state="disabled"
@@ -572,8 +572,8 @@ class ExperimentApp:
 
     def start_baseline_qc(self):
         try:
-            active_recorder.start_baseline(60.0)
-            self.status_var.set("60秒睁眼静息QC已开始；请坐稳并尽量不动。")
+            active_recorder.start_baseline(30.0)
+            self.status_var.set("30秒睁眼静息QC已开始；请坐稳并尽量不动。")
             self.qc_override_button.configure(state="disabled")
         except Exception as exc:
             messagebox.showerror("无法开始采前QC", str(exc))
@@ -717,7 +717,7 @@ class ExperimentApp:
         age_text = self._format_metric(data_age, "秒")
         self.qc_shared_var.set(f"丢包率：{loss_text}　数据龄：{age_text}")
         baseline = qc.get("baseline", {})
-        target = max(1.0, float(baseline.get("target_sec", 60.0)))
+        target = max(1.0, float(baseline.get("target_sec", 30.0)))
         recorded = float(baseline.get("recorded_sec", 0.0))
         self.baseline_progress_var.set(min(100.0, recorded / target * 100.0))
 

@@ -17,6 +17,12 @@ class ProtocolConfigTests(unittest.TestCase):
     def test_config_is_valid_and_traceable(self):
         config, digest, path = load_protocol_config(ROOT)
         self.assertEqual(config["protocol_version"], "2.1")
+        self.assertEqual(config["software_version"], "2.1.1")
+        self.assertEqual(config["flow"]["baseline_duration_sec"], 30)
+        self.assertEqual(
+            config["flow"]["rest_durations_after_block_sec"],
+            {str(block_id): 30 for block_id in range(1, 6)},
+        )
         self.assertEqual(len(digest), 64)
         self.assertEqual(path.name, "protocol_v2.1.json")
 

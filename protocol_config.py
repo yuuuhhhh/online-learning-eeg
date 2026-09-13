@@ -53,12 +53,12 @@ def validate_protocol_config(config: dict[str, Any]) -> None:
             raise ValueError(f"{group} conditions must alternate")
 
     flow = config.get("flow", {})
-    if flow.get("block_count") != 6 or flow.get("baseline_duration_sec") != 60:
-        raise ValueError("flow must contain six blocks and a fixed 60-second baseline")
+    if flow.get("block_count") != 6 or flow.get("baseline_duration_sec") != 30:
+        raise ValueError("flow must contain six blocks and a fixed 30-second baseline")
     if flow.get("rest_durations_after_block_sec") != {
-        "1": 30, "2": 30, "3": 180, "4": 30, "5": 30
+        "1": 30, "2": 30, "3": 30, "4": 30, "5": 30
     }:
-        raise ValueError("rest schedule must be 30/30/180/30/30 seconds")
+        raise ValueError("rest schedule must be 30/30/30/30/30 seconds")
 
     probe = config.get("thought_probe", {})
     if probe.get("probes_per_block") != 4:

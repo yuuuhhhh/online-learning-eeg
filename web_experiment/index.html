@@ -971,7 +971,7 @@ async function startBlock(){
   if(!video.src){alert("请先选择并载入视频。");return}
   if(videoMap.size!==6){alert("必须先选择并正确匹配全部6个正式视频。");return}
   if(!eegEndpoint||!activeEegSession){alert("尚未连接EEG采集端。请先启动Python采集程序，并确认页面右上角显示“EEG已连接”。");return}
-  if(!activeEegSession.qc_ready_for_experiment){alert("采前QC尚未通过或异常尚未确认。请先回到采集窗口完成固定60秒睁眼静息QC。");return}
+  if(!activeEegSession.qc_ready_for_experiment){alert("采前QC尚未通过或异常尚未确认。请先回到采集窗口完成固定30秒睁眼静息QC。");return}
   if(activeEegSession.qc?.status==="bad"){alert("当前EEG质量异常或数据已中断，请先重连并排查电极/参考地/供电。");return}
   const blockNum=blockNumber();
   const expectedBlock=activeEegSession.planned_blocks[blockNum-1];
@@ -1307,7 +1307,7 @@ function updateRestClock(){
 }
 function plannedRestAfterBlock(blockId){
   return Number(activeEegSession?.rest_durations_after_block_sec?.[String(blockId)]||
-    activeEegSession?.rest_durations_after_block_sec?.[blockId]||({1:30,2:30,3:180,4:30,5:30})[blockId]||0);
+    activeEegSession?.rest_durations_after_block_sec?.[blockId]||({1:30,2:30,3:30,4:30,5:30})[blockId]||0);
 }
 function beginBlockRest(afterBlockId){
   restingAfterBlock=afterBlockId;restPlannedDuration=plannedRestAfterBlock(afterBlockId);restStartedPerf=performance.now();
