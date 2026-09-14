@@ -1,111 +1,155 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 from pathlib import Path
 import tempfile
 import unittest
+import uuid
+from unittest.mock import patch
 
-import numpy as np
-import pandas as pd
 from scipy.io import loadmat
 
-from epoch_builder import WINDOW_COLUMNS
-from mat_exporter import export_session_to_mat
-from preprocess_eeg import preprocess_session
-from session_reports import build_session_qc_report
-from session_recorder import PROTOCOL_CONFIG
+from session_recorder import ExperimentRecorder, SessionConfig
 
 
-ROOT = Path(__file__).resolve().parents[1]
+def packet(index: int, first: int = 100, second: int = -100) -> bytes:
+    return (b"\xa0" + bytes([index & 255]) + first.to_bytes(3, "big", signed=True)
+            + second.to_bytes(3, "big", signed=True) + bytes(24) + b"\xc0")
 
 
-class ExportTests(unittest.TestCase):
-    def test_windows_schema_contains_analysis_covariates_and_dataset_masks(self):
-        required = {
-            "probe_id", "probe_attention", "probe_confidence", "seconds_to_probe",
-            "mental_effort", "course_attention_rating", "video_interest", "video_difficulty",
-            "start_number", "reported_final_number", "subtraction_compliance",
-            "self_caught_nearby", "quality_label", "reject_reason", "dataset_membership",
-            "training_eligible", "start_sample", "end_sample", "start_timestamp", "end_timestamp",
-        }
-        self.assertTrue(required <= set(WINDOW_COLUMNS))
+class RawAcquisitionExportTests(unittest.TestCase):
+    def make_recorder(self, root: Path) -> ExperimentRecorder:
+        rec = ExperimentRecorder(
+            SessionConfig(subject_id="sub-raw", counterbalance_group="G01", study_phase="pilot"),
+            root,
+        )
+        rec.start()
+        return rec
 
-    def test_offline_notch_writes_a_copy_and_preserves_raw(self):
+    @staticmethod
+    def read_csv(path: Path) -> list[dict[str, str]]:
+        with path.open(encoding="utf-8", newline="") as handle:
+            return list(csv.DictReader(handle))
+
+    def test_raw_packets_and_adc_counts_round_trip_exactly(self):
         with tempfile.TemporaryDirectory() as tmp:
-            session = Path(tmp)
-            sample_rate = 250
-            count = 1000
-            t = np.arange(count) / sample_rate
-            signal = np.sin(2 * np.pi * 10 * t) + 4 * np.sin(2 * np.pi * 50 * t)
-            frame = pd.DataFrame({
-                "device_sample_number": np.arange(count), "stream_segment": 0,
-                "channel_0_uv": signal, "channel_1_uv": signal,
-            })
-            frame.to_csv(session / "eeg.csv", index=False)
-            (session / "metadata.json").write_text(json.dumps({
-                "session": {"sample_rate_hz": sample_rate}
-            }), encoding="utf-8")
-            original = (session / "eeg.csv").read_bytes()
-            output, report = preprocess_session(session)
-            self.assertEqual((session / "eeg.csv").read_bytes(), original)
-            self.assertTrue(output.exists())
-            details = json.loads(report.read_text(encoding="utf-8"))
-            self.assertFalse(details["raw_source_overwritten"])
-            self.assertEqual(details["filter"]["center_hz"], 50.0)
-            filtered = pd.read_csv(output)["channel_0_uv_notch50"].to_numpy()
-            self.assertLess(np.nanstd(filtered), np.std(signal))
+            rec = self.make_recorder(Path(tmp))
+            packets = [packet(0, 123456, -654321), packet(1, -1, 1)]
+            for raw in packets:
+                rec.record_packet(raw, raw)
+            rec.stop(export_mat=False)
+            self.assertEqual(rec.raw_path.read_bytes(), b"".join(packets))
+            rows = self.read_csv(rec.eeg_path)
+            self.assertEqual([(int(r["channel_0_raw"]), int(r["channel_1_raw"])) for r in rows],
+                             [(123456, -654321), (-1, 1)])
 
-    def test_integrity_report_detects_missing_items(self):
+    def test_gap_is_marked_without_filling_and_duplicate_is_marked(self):
         with tempfile.TemporaryDirectory() as tmp:
-            session = Path(tmp)
-            pd.DataFrame(columns=["event_type", "probe_id", "block_id"]).to_csv(session / "events.csv", index=False)
-            pd.DataFrame(columns=["device_sample_number"]).to_csv(session / "eeg.csv", index=False)
-            pd.DataFrame().to_csv(session / "qc.csv", index=False)
-            (session / "metadata.json").write_text(json.dumps({
-                "run_id": "run-x", "software_version": "2.1.1", "protocol_version": "2.1",
-                "protocol_config_version": "test", "session": {
-                    "sample_rate_hz": 250, "counterbalance_group": "G01", "study_phase": "pilot",
-                    "b_start_numbers": {}, "baseline_override": False,
-                }, "qc": {"dropouts": []}, "preprocessing": PROTOCOL_CONFIG["preprocessing"],
-            }), encoding="utf-8")
-            report = json.loads(build_session_qc_report(session).read_text(encoding="utf-8"))
-            self.assertEqual(report["status"], "FAIL")
-            self.assertTrue(any("probes" in item for item in report["failures"]))
-            self.assertTrue(any("eeg.csv" in item for item in report["failures"]))
+            rec = self.make_recorder(Path(tmp))
+            for index in (10, 13, 13):
+                raw = packet(index)
+                rec.record_packet(raw, raw)
+            rec.stop(export_mat=False)
+            rows = self.read_csv(rec.eeg_path)
+            self.assertEqual(len(rows), 3)
+            self.assertEqual([int(r["device_sample_number"]) for r in rows], [0, 3, 3])
+            self.assertEqual(rows[1]["packet_gap_before"], "2")
+            self.assertIn("duplicate_index", rows[2]["quality_flag"])
 
-    def test_mat_contains_normalized_tables_and_integrity_report(self):
+    def test_saturated_sample_is_flagged_but_still_saved_unchanged(self):
         with tempfile.TemporaryDirectory() as tmp:
-            session = Path(tmp)
-            pd.DataFrame([{
-                "received_timestamp": 1, "received_order": 0, "device_sample_number": 0,
-                "sample_index": 0, "sample_time_sec": 0, "packet_gap_before": 0,
-                "block_id": "", "group_id": "", "condition": "", "condition_type": "",
-                "condition_code": -1, "weak_label": -1, "phase": "idle", "base_valid_for_training": 0,
-                "channel_0_raw": 1, "channel_1_raw": -1, "channel_0_uv": 1.0, "channel_1_uv": -1.0,
-                "quality_flag": "ok", "is_formal_experiment": 0, "stream_segment": 0,
-                "sample_time_status": "packet_counter",
-            }]).to_csv(session / "eeg.csv", index=False)
-            pd.DataFrame([{"event_type": "session_start", "block_id": "", "sample_time_sec": ""}]).to_csv(session / "events.csv", index=False)
-            pd.DataFrame(columns=["status"]).to_csv(session / "qc.csv", index=False)
-            metadata = {
-                "run_id": "run-x", "labels": {"-1": "none"},
-                "session": {"sample_rate_hz": 250, "channel_names": ["c0", "c1"], "conditions": {},
-                            "planned_sequence": [], "counterbalance_group": "G01"},
+            rec = self.make_recorder(Path(tmp))
+            raw = packet(0, 8_388_607, -8_388_608)
+            rec.record_packet(raw, raw)
+            rec.stop(export_mat=False)
+            row = self.read_csv(rec.eeg_path)[0]
+            self.assertEqual(int(row["channel_0_raw"]), 8_388_607)
+            self.assertEqual(int(row["channel_1_raw"]), -8_388_608)
+            self.assertIn("adc_saturation", row["quality_flag"])
+            self.assertEqual(rec.raw_path.read_bytes(), raw)
+
+    def test_reconnect_starts_new_stream_segment(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = self.make_recorder(Path(tmp))
+            raw = packet(1); rec.record_packet(raw, raw)
+            rec.mark_stream_discontinuity()
+            raw = packet(2); rec.record_packet(raw, raw)
+            rec.stop(export_mat=False)
+            self.assertEqual([r["stream_segment"] for r in self.read_csv(rec.eeg_path)], ["0", "1"])
+
+    def test_events_align_or_remain_explicitly_unaligned_and_browser_retries_dedupe(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = self.make_recorder(Path(tmp))
+            anchor = rec.clock_time()
+            with patch.object(rec, "clock_time", return_value=anchor):
+                raw = packet(0); rec.record_packet(raw, raw)
+            with patch.object(rec, "clock_time", return_value=anchor + 0.1):
+                rec.log_event("sync_near")
+            with patch.object(rec, "clock_time", return_value=anchor + 1.0):
+                rec.log_event("sync_far")
+            event_id = str(uuid.uuid4())
+            payload = {
+                "client_event_id": event_id, "client_id": "browser-test",
+                "recorder_run_id": rec.run_id, "subject_id": "sub-raw", "session_id": "ses-001",
+                "counterbalance_group": "G01", "event_type": "sync_marker",
             }
-            (session / "metadata.json").write_text(json.dumps(metadata), encoding="utf-8")
-            for filename, columns in (
-                ("probes.csv", ["probe_id"]), ("block_ratings.csv", ["block_id"]),
-                ("quiz_responses.csv", ["question_id"]), ("probe_epochs.csv", ["probe_id"]),
-                ("windows.csv", ["window_id"]),
-            ):
-                pd.DataFrame(columns=columns).to_csv(session / filename, index=False)
-            (session / "session_qc_report.json").write_text('{"status":"FAIL"}', encoding="utf-8")
-            mat = loadmat(export_session_to_mat(session))
-            self.assertIn("session_qc_report_json", mat)
-            self.assertIn("probes", mat)
-            self.assertIn("block_ratings", mat)
-            self.assertIn("quiz_responses", mat)
+            self.assertTrue(rec.handle_browser_event(payload))
+            self.assertFalse(rec.handle_browser_event(payload))
+            rec.browser_clients.clear()
+            rec.stop(export_mat=False)
+            rows = self.read_csv(rec.events_path)
+            near = next(row for row in rows if row["event_type"] == "sync_near")
+            far = next(row for row in rows if row["event_type"] == "sync_far")
+            self.assertEqual(near["alignment_status"], "host_receive_nearest")
+            self.assertEqual(far["alignment_status"], "outside_sample_tolerance")
+            self.assertEqual(far["device_sample_number"], "")
+            self.assertEqual(sum(row["event_id"] == event_id for row in rows), 1)
+
+    def test_stop_creates_hashes_report_and_no_derived_windows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = self.make_recorder(Path(tmp))
+            raw = packet(0); rec.record_packet(raw, raw)
+            rec.stop(export_mat=True)
+            self.assertTrue(rec.checksums_path.exists())
+            self.assertTrue((rec.session_dir / "session_acquisition_report.json").exists())
+            self.assertTrue((rec.session_dir / "session_raw.mat").exists())
+            self.assertFalse((rec.session_dir / "windows.csv").exists())
+            self.assertFalse((rec.session_dir / "probe_epochs.csv").exists())
+            self.assertFalse((rec.session_dir / "eeg_preprocessed.csv").exists())
+            metadata = json.loads(rec.metadata_path.read_text(encoding="utf-8"))
+            for path in (rec.eeg_path, rec.raw_path):
+                digest = hashlib.sha256(path.read_bytes()).hexdigest()
+                self.assertEqual(metadata["raw_file_sha256"][path.name], digest)
+            forbidden = (rec.session_dir / "session_acquisition_report.json").read_text(encoding="utf-8")
+            self.assertNotIn("training_eligible", forbidden)
+            self.assertNotIn("valid_window", forbidden)
+            mat = loadmat(rec.session_dir / "session_raw.mat")
+            self.assertIn("session_acquisition_report_json", mat)
+            self.assertNotIn("windows", mat)
+            self.assertNotIn("probe_epochs", mat)
+
+    def test_report_failure_does_not_damage_raw_files(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = self.make_recorder(Path(tmp))
+            raw = packet(0, 7, -7); rec.record_packet(raw, raw)
+            with patch("session_reports.build_session_acquisition_report", side_effect=RuntimeError("report boom")):
+                rec.stop(export_mat=False)
+            self.assertEqual(rec.raw_path.read_bytes(), raw)
+            self.assertEqual(len(self.read_csv(rec.eeg_path)), 1)
+            self.assertIn("report boom", rec.integrity_status)
+
+    def test_mat_failure_is_nonfatal_for_raw_session(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            rec = self.make_recorder(Path(tmp))
+            raw = packet(0, 9, -9); rec.record_packet(raw, raw)
+            with patch("mat_exporter.export_session_to_mat", side_effect=RuntimeError("mat boom")):
+                result = rec.stop(export_mat=True)
+            self.assertIsNone(result)
+            self.assertEqual(rec.raw_path.read_bytes(), raw)
+            self.assertTrue(rec.checksums_path.exists())
+            self.assertIn("mat boom", rec.export_status)
 
 
 if __name__ == "__main__":

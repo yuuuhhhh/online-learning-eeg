@@ -1,4 +1,4 @@
-"""Offline 50 Hz line-noise removal on a copy of the recorded EEG.
+"""Offline-only 50 Hz line-noise removal on a copy of the recorded EEG.
 
 The acquisition files are never changed. Filtering is applied separately to
 continuous stream segments so a dropout is never bridged by the filter.
@@ -15,10 +15,12 @@ import numpy as np
 import pandas as pd
 from scipy.signal import filtfilt, iirnotch
 
-try:
-    from .protocol_config import load_protocol_config
-except ImportError:
-    from protocol_config import load_protocol_config
+FILTER_CONFIG = {
+    "enabled": True,
+    "stage": "offline_copy_only",
+    "type": "notch_bandstop",
+    "center_hz": 50.0,
+}
 
 
 def preprocess_session(session_dir: Path | str) -> tuple[Path, Path]:
@@ -26,8 +28,7 @@ def preprocess_session(session_dir: Path | str) -> tuple[Path, Path]:
     metadata_path = session_dir / "metadata.json"
     eeg_path = session_dir / "eeg.csv"
     metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-    protocol, protocol_hash, _ = load_protocol_config(Path(__file__).resolve().parent)
-    filter_config = protocol["preprocessing"]["line_noise_filter"]
+    filter_config = FILTER_CONFIG
     if not filter_config.get("enabled") or filter_config.get("type") != "notch_bandstop":
         raise ValueError("protocol does not enable the documented 50 Hz notch/band-stop filter")
 
@@ -83,8 +84,7 @@ def preprocess_session(session_dir: Path | str) -> tuple[Path, Path]:
         "sample_rate_hz": sample_rate,
         "processed_continuous_segments": processed_segments,
         "skipped_segments": skipped_segments,
-        "protocol_config_version": protocol["config_version"],
-        "protocol_config_sha256": protocol_hash,
+        "offline_tool": "offline_analysis/preprocess_eeg.py",
     }
     report_path = session_dir / "preprocessing_report.json"
     report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2), encoding="utf-8")

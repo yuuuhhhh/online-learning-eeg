@@ -90,11 +90,15 @@ def validate_protocol_config(config: dict[str, Any]) -> None:
         if duration < required:
             raise ValueError(f"{video.get('video_id')} is too short for all four probes")
 
-    if config.get("qc", {}).get("acquisition_line_noise_measurement") is not False:
-        raise ValueError("50 Hz measurement must remain disabled during acquisition")
-    line_filter = config.get("preprocessing", {}).get("line_noise_filter", {})
-    if line_filter.get("stage") != "offline_copy_only" or line_filter.get("type") != "notch_bandstop":
-        raise ValueError("50 Hz removal must be an offline-copy notch/band-stop operation")
+    qc = config.get("qc", {})
+    if qc.get("affects_recording_or_labels") is not False:
+        raise ValueError("acquisition QC must not alter recording or labels")
+    raw_data = config.get("raw_data", {})
+    for field in ("packet_protocol_version", "parser_version", "eeg_schema_version", "event_schema_version"):
+        if not str(raw_data.get(field, "")).strip():
+            raise ValueError(f"raw_data.{field} is required")
+    if raw_data.get("missing_sample_policy") != "never_fill_or_interpolate":
+        raise ValueError("missing EEG samples must never be filled or interpolated")
 
 
 def planned_blocks(config: dict[str, Any], counterbalance_group: str) -> list[dict[str, Any]]:

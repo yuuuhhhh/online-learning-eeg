@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import os
@@ -141,15 +142,25 @@ def _counts_by_block(frame: pd.DataFrame, *, mask: pd.Series | None = None) -> d
     return {str(block): int((numeric == block).sum()) for block in range(1, 7)}
 
 
-def build_session_qc_report(session_dir: Path | str) -> Path:
+def _sha256_file(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def build_session_acquisition_report(session_dir: Path | str) -> Path:
+    """Report collection and label integrity without judging scientific usability."""
     session_dir = Path(session_dir).resolve()
     build_normalized_tables(session_dir)
     metadata = json.loads((session_dir / "metadata.json").read_text(encoding="utf-8"))
     session = metadata.get("session", {})
     events = _read_csv(session_dir / "events.csv")
     eeg = _read_csv(session_dir / "eeg.csv")
-    qc = _read_csv(session_dir / "qc.csv")
-    windows = _read_csv(session_dir / "windows.csv")
+    qc = _read_csv(session_dir / "acquisition_qc.csv")
     probes = _read_csv(session_dir / "probes.csv")
     ratings = _read_csv(session_dir / "block_ratings.csv")
     quiz = _read_csv(session_dir / "quiz_responses.csv")
@@ -227,8 +238,6 @@ def build_session_qc_report(session_dir: Path | str) -> Path:
         failures.append("eeg.csv contains no EEG samples")
 
     warnings: list[str] = []
-    if session.get("baseline_override"):
-        warnings.append("Baseline QC was overridden; inspect operator and reason")
     if not metadata.get("protocol_config_version"):
         warnings.append("Protocol config traceability is missing")
     if session.get("study_phase") != "formal":
@@ -239,24 +248,53 @@ def build_session_qc_report(session_dir: Path | str) -> Path:
     missing_packets = int(packet_gaps.sum()) if len(packet_gaps) else 0
     expected_packets = len(eeg) + missing_packets
     quality_flags = eeg.get("quality_flag", pd.Series(dtype=str)).astype(str) if not eeg.empty else pd.Series(dtype=str)
+    raw_path = session_dir / "eeg_raw.bin"
+    packet_bytes = int(metadata.get("raw_data", {}).get("packet_bytes", 33))
+    raw_size = raw_path.stat().st_size if raw_path.exists() else 0
+    raw_packet_count = raw_size // packet_bytes if packet_bytes else 0
+    if not raw_path.exists():
+        failures.append("eeg_raw.bin is missing")
+    elif raw_size % packet_bytes:
+        failures.append("eeg_raw.bin has a partial trailing packet")
+    if raw_packet_count != len(eeg):
+        failures.append(f"raw packet/sample count mismatch: {raw_packet_count}/{len(eeg)}")
+
+    alignment = events.get("alignment_status", pd.Series(dtype=str)).astype(str) if not events.empty else pd.Series(dtype=str)
+    aligned_values = {"host_receive_nearest"}
+    unaligned_event_count = int((~alignment.isin(aligned_values)).sum()) if len(alignment) else 0
+    if unaligned_event_count:
+        warnings.append(f"{unaligned_event_count} events are not aligned to a nearby EEG sample")
+
+    ended = bool(not events.empty and names.eq("session_end").any())
+    started_ts = _number(session.get("started_timestamp"), 0.0)
+    ended_ts = _number(session.get("ended_timestamp"), 0.0)
+    duration = max(0.0, ended_ts - started_ts) if started_ts and ended_ts else None
+    duplicate_packets = int(_number(metadata.get("counts", {}).get("duplicate_packets"), 0))
+    hashes = {
+        "eeg.csv": _sha256_file(session_dir / "eeg.csv"),
+        "eeg_raw.bin": _sha256_file(raw_path),
+    }
+    stored_hashes = metadata.get("raw_file_sha256", {})
+    if stored_hashes and hashes != stored_hashes:
+        failures.append("raw file SHA-256 does not match metadata")
+
     session_metrics = {
+        "session_ended": ended,
+        "actual_duration_sec": duration,
         "received_samples": len(eeg),
+        "raw_packet_count": raw_packet_count,
         "total_missing_packets": missing_packets,
         "total_packet_loss_rate_pct": round(missing_packets / expected_packets * 100.0, 6) if expected_packets else None,
+        "duplicate_packet_count": duplicate_packets,
         "longest_packet_gap_sec": round((_number(packet_gaps.max()) / sample_rate), 6) if len(packet_gaps) else 0.0,
         "dropout_count": len(metadata.get("qc", {}).get("dropouts", [])),
         "dropout_total_duration_sec": round(sum(_number(item.get("duration_sec")) for item in metadata.get("qc", {}).get("dropouts", [])), 6),
         "saturated_sample_ratio_pct": round(quality_flags.str.contains("adc_saturation", regex=False).mean() * 100.0, 6) if len(quality_flags) else None,
-        "channel_0_rms_uv_median": _number(pd.to_numeric(qc.get("channel_0_rms_uv", pd.Series(dtype=str)), errors="coerce").median(), None) if not qc.empty else None,
-        "channel_1_rms_uv_median": _number(pd.to_numeric(qc.get("channel_1_rms_uv", pd.Series(dtype=str)), errors="coerce").median(), None) if not qc.empty else None,
+        "flatline_snapshot_count": int((qc.get("channel_0_invalid_flatline", pd.Series(dtype=str)).astype(str).str.lower().eq("true") |
+                                         qc.get("channel_1_invalid_flatline", pd.Series(dtype=str)).astype(str).str.lower().eq("true")).sum()) if not qc.empty else 0,
+        "unaligned_event_count": unaligned_event_count,
+        "raw_file_sha256": hashes,
     }
-
-    per_block_valid_ratio = {}
-    if not windows.empty and "block_id" in windows:
-        for block_id, part in windows.groupby("block_id"):
-            labels = part.get("quality_label", pd.Series([""] * len(part))).str.upper()
-            per_block_valid_ratio[str(block_id)] = round(float(labels.isin(["GOOD", "USABLE"]).mean()), 6)
-    session_metrics["per_block_valid_window_ratio"] = per_block_valid_ratio
 
     status = "FAIL" if failures else "WARN" if warnings else "PASS"
     report = {
@@ -283,12 +321,9 @@ def build_session_qc_report(session_dir: Path | str) -> Path:
         "failures": failures,
         "warnings": warnings,
         "session_metrics": session_metrics,
-        "line_noise_policy": {
-            "measured_during_acquisition": False,
-            "offline_filter": metadata.get("preprocessing", {}).get("line_noise_filter", {}),
-        },
+        "report_scope": "acquisition and label integrity only",
     }
-    path = session_dir / "session_qc_report.json"
+    path = session_dir / "session_acquisition_report.json"
     temporary = path.with_suffix(".json.tmp")
     with temporary.open("w", encoding="utf-8") as handle:
         json.dump(report, handle, ensure_ascii=False, indent=2)

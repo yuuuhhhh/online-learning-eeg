@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import csv
+import hashlib
 import json
 import math
 import os
@@ -36,18 +37,12 @@ QC_CSV_COLUMNS = [
     "context",
     "window_duration_sec",
     "sample_count",
+    "estimated_sample_rate_hz",
     "missing_packets",
     "packet_loss_rate_pct",
+    "duplicate_packets_total",
     "channel_0_saturation_rate_pct",
     "channel_1_saturation_rate_pct",
-    "channel_0_rms_uv",
-    "channel_1_rms_uv",
-    "channel_0_dc_offset_counts",
-    "channel_1_dc_offset_counts",
-    "channel_0_peak_abs_counts",
-    "channel_1_peak_abs_counts",
-    "channel_0_high_frequency_ratio_pct",
-    "channel_1_high_frequency_ratio_pct",
     "signal_alive",
     "status",
     "messages",
@@ -73,9 +68,7 @@ EEG_CSV_COLUMNS = [
     "condition_label",
     "condition_type",
     "condition_code",
-    "weak_label",
     "phase",
-    "base_valid_for_training",
     "channel_0_raw",
     "channel_1_raw",
     "channel_0_uv",
@@ -85,6 +78,7 @@ EEG_CSV_COLUMNS = [
 EEG_CSV_COLUMNS += ["is_formal_experiment", "stream_segment", "sample_time_status"]
 
 EVENT_CSV_COLUMNS = [
+    "event_id",
     "event_name",
     "event_timestamp",
     "sample_time_sec",
@@ -111,7 +105,7 @@ EVENT_CSV_COLUMNS = [
 ]
 EVENT_CSV_COLUMNS += [
     "run_id", "subject_id", "session_id", "client_event_id", "client_id",
-    "received_timestamp", "client_timestamp", "client_monotonic_ms",
+    "received_timestamp", "client_timestamp", "client_monotonic_ms", "source_client",
     "timestamp_source", "clock_offset_sec", "clock_round_trip_ms",
     "eeg_received_order", "eeg_sample_number", "eeg_stream_segment", "alignment_error_ms", "alignment_status",
     "identity_status", "context_matches_current", "state_applied",
@@ -168,25 +162,6 @@ LEGACY_ARITHMETIC_EVENTS = {
     "arithmetic_onset", "arithmetic_response", "arithmetic_timeout", "arithmetic_cancelled",
     "math_onset", "math_response", "math_timeout", "math_summary",
 }
-
-
-def _epoch_rules() -> dict[str, Any]:
-    """Describe the derived attention index; epoch_builder owns the values."""
-    try:
-        from .epoch_builder import ATTENTION_LABELS, EPOCH_DURATION_SEC, WINDOW_LENGTH_SEC, WINDOW_STEP_SEC
-    except ImportError:
-        from epoch_builder import ATTENTION_LABELS, EPOCH_DURATION_SEC, WINDOW_LENGTH_SEC, WINDOW_STEP_SEC
-    return {
-        "epoch_duration_sec": EPOCH_DURATION_SEC,
-        "window_length_sec": WINDOW_LENGTH_SEC,
-        "window_step_sec": WINDOW_STEP_SEC,
-        "attention_labels": list(ATTENTION_LABELS),
-        "anchor": "probe_onset device_sample_number; the epoch ends on the last sample before the probe page",
-        "files": ["probe_epochs.csv", "windows.csv"],
-        "storage": "sample indices and labels only; EEG stays once in eeg.csv and eeg_raw.bin",
-        "grouping": "split train/test by probe_id, block and subject; never split one probe's windows",
-        "none_policy": "ordinary video EEG that no probe asked about is labelled NONE, never ON or OFF",
-    }
 
 
 def _is_legacy_arithmetic_event(event_type: Any) -> bool:
@@ -276,6 +251,24 @@ def _safe_id(value: str, field_name: str) -> str:
     return value
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _write_checksum_manifest(path: Path, hashes: dict[str, str]) -> None:
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("w", encoding="ascii", newline="\n") as handle:
+        for filename in sorted(hashes):
+            handle.write(f"{hashes[filename]}  {filename}\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    temporary.replace(path)
+
+
 def parse_24bit_signed(data: bytes) -> int:
     if len(data) != 3:
         raise ValueError("A 24-bit EEG value must contain exactly 3 bytes")
@@ -305,10 +298,6 @@ class SessionConfig:
     eeg_absence_alert_sec: float = float(PROTOCOL_CONFIG["qc"]["eeg_absence_alert_sec"])
     packet_loss_warning_pct: float = float(PROTOCOL_CONFIG["qc"]["packet_loss_warning_pct"])
     packet_loss_fail_pct: float = float(PROTOCOL_CONFIG["qc"]["packet_loss_fail_pct"])
-    extreme_dc_offset_counts: float = float(PROTOCOL_CONFIG["qc"]["extreme_dc_offset_counts"])
-    extreme_amplitude_counts: float = float(PROTOCOL_CONFIG["qc"]["extreme_amplitude_counts"])
-    high_frequency_ratio_warning_pct: float = float(PROTOCOL_CONFIG["qc"]["high_frequency_ratio_warning_pct"])
-    high_frequency_ratio_fail_pct: float = float(PROTOCOL_CONFIG["qc"]["high_frequency_ratio_fail_pct"])
 
     def validate(self) -> None:
         self.subject_id = _safe_id(self.subject_id, "subject_id")
@@ -347,9 +336,10 @@ class ExperimentRecorder:
         self.eeg_path = self.session_dir / "eeg.csv"
         self.events_path = self.session_dir / "events.csv"
         self.raw_path = self.session_dir / "eeg_raw.bin"
-        self.qc_path = self.session_dir / "qc.csv"
+        self.qc_path = self.session_dir / "acquisition_qc.csv"
         self.metadata_path = self.session_dir / "metadata.json"
-        self.mat_path = self.session_dir / "session.mat"
+        self.mat_path = self.session_dir / "session_raw.mat"
+        self.checksums_path = self.session_dir / "checksums.sha256"
 
         self._lock = threading.RLock()
         self._eeg_handle = None
@@ -389,8 +379,9 @@ class ExperimentRecorder:
         self._shutdown_acks: set[str] = set()
         self._session_end_logged = False
         self.export_status = "not_started"
-        self.epoch_status = "not_started"
         self.integrity_status = "not_started"
+        self.raw_file_hashes: dict[str, str] = {}
+        self.storage_error: Optional[str] = None
         self.started_timestamp: Optional[float] = None
         self.ended_timestamp: Optional[float] = None
 
@@ -422,7 +413,6 @@ class ExperimentRecorder:
         self._qc_samples: deque[tuple[float, int, int, int]] = deque(maxlen=qc_capacity)
         self._last_packet_timestamp: Optional[float] = None
         self._cached_qc: dict[str, Any] = {}
-        self._rms_instability_started_at: list[Optional[float]] = [None, None]
         self._last_qc_status = "waiting"
         self.qc_snapshot_count = 0
 
@@ -430,10 +420,7 @@ class ExperimentRecorder:
         self.baseline_target_sec = float(PROTOCOL_CONFIG["flow"]["baseline_duration_sec"])
         self.baseline_complete = False
         self.baseline_passed = False
-        self.baseline_override = False
         self.baseline_result: dict[str, Any] = {}
-        self.baseline_rms_uv: list[Optional[float]] = [None, None]
-        self.baseline_override_details: dict[str, Any] = {}
         self._dropout_started_timestamp: Optional[float] = None
         self.dropout_records: list[dict[str, Any]] = []
 
@@ -558,7 +545,7 @@ class ExperimentRecorder:
 
     @property
     def qc_ready_for_experiment(self) -> bool:
-        return self.baseline_complete and (self.baseline_passed or self.baseline_override)
+        return self.baseline_complete and self.baseline_passed
 
     def start_baseline(self, duration_sec: float = 30.0) -> None:
         duration_sec = float(duration_sec)
@@ -575,35 +562,10 @@ class ExperimentRecorder:
             self.baseline_started_timestamp = self.clock_time()
             self.baseline_complete = False
             self.baseline_passed = False
-            self.baseline_override = False
             self.baseline_result = {}
-            self.baseline_rms_uv = [None, None]
-            self._rms_instability_started_at = [None, None]
             self._qc_samples.clear()
             self.phase = "baseline"
-            self.log_event("qc_baseline_start", duration_sec=duration_sec)
-
-    def approve_baseline_override(self, operator_id: str, reason: str) -> None:
-        with self._lock:
-            if not self.baseline_complete:
-                raise RuntimeError("Baseline QC has not completed")
-            if self.baseline_passed:
-                return
-            operator_id = _safe_id(operator_id, "operator_id")
-            reason = str(reason).strip()
-            if not reason:
-                raise ValueError("人工QC override必须填写原因")
-            self.baseline_override = True
-            self.baseline_override_details = {
-                "operator_id": operator_id,
-                "reason": reason,
-                "timestamp": self.clock_time(),
-            }
-            self.log_event(
-                "qc_baseline_override", operator_id=operator_id, override_reason=reason,
-                notes=f"OVERRIDE: {reason}",
-            )
-            self._write_metadata("recording")
+            self.log_event("baseline_start", duration_sec=duration_sec)
 
     def _initial_qc_status(self) -> dict[str, Any]:
         return {
@@ -613,17 +575,23 @@ class ExperimentRecorder:
             "status_label": "等待EEG数据",
             "messages": ["尚未收到足够的EEG数据。"],
             "sample_count": 0,
+            "estimated_sample_rate_hz": None,
             "window_duration_sec": 0.0,
             "missing_packets": 0,
             "packet_loss_rate_pct": None,
             "data_age_sec": None,
             "signal_alive": False,
             "channels": [
-                {"sample_count": 0, "saturation_rate_pct": None, "rms_uv": None,
-                 "dc_offset_counts": None, "peak_abs_counts": None, "high_frequency_ratio_pct": None},
-                {"sample_count": 0, "saturation_rate_pct": None, "rms_uv": None,
-                 "dc_offset_counts": None, "peak_abs_counts": None, "high_frequency_ratio_pct": None},
+                {"sample_count": 0, "saturation_rate_pct": None, "rms_counts": None,
+                 "longest_unchanged_sec": 0.0, "invalid_flatline": False},
+                {"sample_count": 0, "saturation_rate_pct": None, "rms_counts": None,
+                 "longest_unchanged_sec": 0.0, "invalid_flatline": False},
             ],
+            "received_samples_total": self.received_order,
+            "duplicate_packets_total": self.duplicate_packets,
+            "raw_save_status": "error" if self.storage_error else "writing",
+            "raw_save_error": self.storage_error,
+            "browser_pending_events": sum(int(item.get("pending", 0)) for item in self.browser_clients.values()),
         }
 
     def get_qc_status(self) -> dict[str, Any]:
@@ -634,6 +602,11 @@ class ExperimentRecorder:
             data_age = None if data_anchor is None else max(0.0, now - data_anchor)
             snapshot["data_age_sec"] = data_age
             snapshot["signal_alive"] = bool(data_age is not None and data_age < self.config.eeg_absence_alert_sec)
+            snapshot["received_samples_total"] = self.received_order
+            snapshot["duplicate_packets_total"] = self.duplicate_packets
+            snapshot["raw_save_status"] = "error" if self.storage_error else ("writing" if self._active else "closed")
+            snapshot["raw_save_error"] = self.storage_error
+            snapshot["browser_pending_events"] = sum(int(item.get("pending", 0)) for item in self.browser_clients.values())
             if data_age is not None and data_age >= self.config.eeg_absence_alert_sec:
                 snapshot["status"] = "bad"
                 snapshot["status_label"] = "EEG中断"
@@ -652,7 +625,6 @@ class ExperimentRecorder:
                 ),
                 "complete": self.baseline_complete,
                 "passed": self.baseline_passed,
-                "override": self.baseline_override,
                 "ready_for_experiment": self.qc_ready_for_experiment,
             }
             return snapshot
@@ -680,7 +652,6 @@ class ExperimentRecorder:
             data_age = None if data_anchor is None else max(0.0, now - data_anchor)
             messages: list[str] = []
             status = "good"
-            has_warning = False
 
             if data_age is None or metrics["sample_count"] < int(self.config.sample_rate_hz * 2):
                 status = "waiting"
@@ -688,9 +659,10 @@ class ExperimentRecorder:
             if data_age is not None and data_age >= self.config.eeg_absence_alert_sec:
                 status = "bad"
                 messages = [f"已连续 {data_age:.1f} 秒没有EEG，请立即重新连接耳机。"]
-                if self.current_block and self._dropout_started_timestamp is None:
+                if self._dropout_started_timestamp is None:
                     self._dropout_started_timestamp = data_anchor
-                    self.phase = "paused"
+                    if self.current_block:
+                        self.phase = "paused"
                     self.log_event(
                         "eeg_dropout", event_value="signal_lost", pause_reason="eeg_dropout",
                         notes=f"absence_threshold_sec={self.config.eeg_absence_alert_sec:g}",
@@ -702,55 +674,18 @@ class ExperimentRecorder:
                 messages.append(f"丢包率 {loss:.2f}% 过高，请检查蓝牙距离、供电和连接。")
             elif loss is not None and loss >= self.config.packet_loss_warning_pct and status == "good":
                 status = "warning"
-                has_warning = True
                 messages.append(f"丢包率 {loss:.2f}% 偏高。")
 
             for channel_index, channel in enumerate(metrics["channels"]):
                 if channel["invalid_flatline"]:
-                    status = "bad"
+                    if status == "good":
+                        status = "warning"
                     messages.append(f"通道{channel_index + 1}信号恒定、RMS接近数值零或连续至少{FLATLINE_DURATION_SEC:g}秒无变化，请检查数据流和电极。")
                 saturation = channel["saturation_rate_pct"]
                 if saturation is not None and saturation > 0:
-                    status = "bad"
-                    messages.append(f"通道{channel_index + 1}出现饱和（{saturation:.3f}%）。")
-
-                dc_offset = channel["dc_offset_counts"]
-                if dc_offset is not None and abs(dc_offset) >= self.config.extreme_dc_offset_counts:
-                    status = "bad"
-                    messages.append(f"通道{channel_index + 1}出现极端DC漂移，请检查电极接触。")
-                peak = channel["peak_abs_counts"]
-                if peak is not None and peak >= self.config.extreme_amplitude_counts:
-                    status = "bad"
-                    messages.append(f"通道{channel_index + 1}出现极端幅值。")
-                high_frequency = channel["high_frequency_ratio_pct"]
-                if high_frequency is not None and high_frequency >= self.config.high_frequency_ratio_fail_pct:
-                    status = "bad"
-                    messages.append(f"通道{channel_index + 1}高频污染严重（{high_frequency:.2f}%）。")
-                elif high_frequency is not None and high_frequency >= self.config.high_frequency_ratio_warning_pct:
                     if status == "good":
                         status = "warning"
-                    has_warning = True
-                    messages.append(f"通道{channel_index + 1}高频污染偏高（{high_frequency:.2f}%）。")
-
-                baseline_rms = self.baseline_rms_uv[channel_index]
-                current_rms = channel["rms_uv"]
-                if context == "runtime" and baseline_rms and current_rms is not None:
-                    ratio = current_rms / baseline_rms
-                    unstable = ratio < 0.2 or ratio > 5.0
-                    if unstable:
-                        if self._rms_instability_started_at[channel_index] is None:
-                            self._rms_instability_started_at[channel_index] = now
-                        if now - self._rms_instability_started_at[channel_index] >= 6.0:
-                            status = "bad"
-                            messages.append(
-                                f"通道{channel_index + 1} RMS相对基线突变，可能接触不稳，请检查并重新连接。"
-                            )
-                        elif status == "good":
-                            status = "warning"
-                            has_warning = True
-                            messages.append(f"通道{channel_index + 1} RMS相对基线异常，正在确认是否持续。")
-                    else:
-                        self._rms_instability_started_at[channel_index] = None
+                    messages.append(f"通道{channel_index + 1}出现饱和（{saturation:.3f}%）。")
 
             if not messages and status == "good":
                 messages.append("当前QC指标正常。")
@@ -766,21 +701,15 @@ class ExperimentRecorder:
             })
 
             if baseline_active and metrics["window_duration_sec"] >= self.baseline_target_sec:
-                saturation_ok = all(
-                    channel["saturation_rate_pct"] == 0 for channel in metrics["channels"]
-                )
-                loss_ok = loss is not None and loss < self.config.packet_loss_fail_pct
                 self.baseline_complete = True
-                self.baseline_passed = bool(
-                    saturation_ok and loss_ok and status != "bad" and status != "waiting"
-                    and not has_warning
-                )
+                # Baseline is an acquisition phase, not a scientific-quality gate.
+                # Only an absent data stream prevents the experiment from continuing.
+                self.baseline_passed = bool(metrics["sample_count"] and data_age is not None and data_age < self.config.eeg_absence_alert_sec)
                 self.baseline_result = json.loads(json.dumps(metrics))
-                self.baseline_rms_uv = [channel["rms_uv"] for channel in metrics["channels"]]
                 self.phase = "idle"
                 self.log_event(
-                    "qc_baseline_complete",
-                    event_value="pass" if self.baseline_passed else "fail",
+                    "baseline_end",
+                    event_value="data_present" if self.baseline_passed else "no_data",
                     duration_sec=metrics["window_duration_sec"],
                     notes="; ".join(messages),
                 )
@@ -804,18 +733,12 @@ class ExperimentRecorder:
             "context": metrics["context"],
             "window_duration_sec": metrics["window_duration_sec"],
             "sample_count": metrics["sample_count"],
+            "estimated_sample_rate_hz": metrics.get("estimated_sample_rate_hz"),
             "missing_packets": metrics["missing_packets"],
             "packet_loss_rate_pct": metrics["packet_loss_rate_pct"],
+            "duplicate_packets_total": self.duplicate_packets,
             "channel_0_saturation_rate_pct": channels[0]["saturation_rate_pct"],
             "channel_1_saturation_rate_pct": channels[1]["saturation_rate_pct"],
-            "channel_0_rms_uv": channels[0]["rms_uv"],
-            "channel_1_rms_uv": channels[1]["rms_uv"],
-            "channel_0_dc_offset_counts": channels[0]["dc_offset_counts"],
-            "channel_1_dc_offset_counts": channels[1]["dc_offset_counts"],
-            "channel_0_peak_abs_counts": channels[0]["peak_abs_counts"],
-            "channel_1_peak_abs_counts": channels[1]["peak_abs_counts"],
-            "channel_0_high_frequency_ratio_pct": channels[0]["high_frequency_ratio_pct"],
-            "channel_1_high_frequency_ratio_pct": channels[1]["high_frequency_ratio_pct"],
             "signal_alive": bool(metrics.get("signal_alive", False)),
             "status": metrics["status"],
             "messages": "; ".join(metrics["messages"]),
@@ -864,8 +787,9 @@ class ExperimentRecorder:
             "status": status,
             "experiment_complete": self.phase == "complete",
             "export_status": self.export_status,
-            "epoch_status": self.epoch_status,
             "integrity_status": self.integrity_status,
+            "storage_error": self.storage_error,
+            "raw_file_sha256": self.raw_file_hashes,
             "unresolved_event_count": sum(len(items) for items in self.unresolved_browser_events.values()),
             "unresolved_events_file": "pending_browser_events.json" if self.unresolved_browser_events else None,
             "event_timing": {
@@ -875,7 +799,7 @@ class ExperimentRecorder:
                 "received_order": "sample count when event received (legacy meaning)",
                 "eeg_received_order": "zero-based EEG row linked to event occurrence",
                 "missing_identity_policy": "legacy payload accepted and explicitly marked",
-                "stream_segment": "increments on reconnect or receive gap >= one 8-bit counter period; do not join EEG windows across segments",
+                "stream_segment": "increments on reconnect or receive gap >= one 8-bit counter period",
                 "sample_time_status": "after a discontinuity packet-counter elapsed time is ambiguous; use EEG row, stream segment and received_timestamp",
             },
             "session": {
@@ -916,7 +840,6 @@ class ExperimentRecorder:
                 "trigger": "video.currentTime; probe time does not advance while the video is paused",
                 "response_policy": "stored exactly as answered; never corrected against the block condition",
             },
-            "attention_epochs": _epoch_rules(),
             "labels": {
                 "-1": "no_instantaneous_attention_label",
             },
@@ -925,41 +848,35 @@ class ExperimentRecorder:
                 "idle", "baseline", "subtraction_practice", "prompt", "video", "paused", "thought_probe",
                 "rating", "quiz", "inter_block", "rest", "post_video", "complete",
             ],
-            "training_rules": {
-                "window_length_sec": 4.0,
-                "window_step_sec": 2.0,
-                "exclude_video_start_sec": 10.0,
-                "exclude_video_end_sec": 5.0,
-                "instantaneous_attention_labels": "ON/OFF/AMBIGUOUS only in probe-confirmed epochs; NONE elsewhere",
-                "condition_policy": "A/B and condition_type describe the block manipulation, not momentary attention truth.",
-                "split_unit": "subject/session/block; never randomly split windows from one block",
-            },
             "qc": {
                 "interval_sec": self.config.qc_interval_sec,
                 "rolling_window_sec": self.config.qc_window_sec,
                 "baseline_target_sec": self.baseline_target_sec,
                 "baseline_complete": self.baseline_complete,
                 "baseline_passed": self.baseline_passed,
-                "baseline_override": self.baseline_override,
-                "baseline_override_details": self.baseline_override_details,
                 "absence_alert_sec": self.config.eeg_absence_alert_sec,
-                "acquisition_line_noise_measurement": False,
                 "thresholds": PROTOCOL_CONFIG["qc"],
-                "reject_reasons": [
-                    "saturation", "flat", "missing", "extreme_amplitude",
-                    "high_frequency_contamination", "motion", "motor_event",
-                ],
+                "purpose": "acquisition diagnostics only; never creates training or rejection labels",
                 "packet_loss_warning_pct": self.config.packet_loss_warning_pct,
                 "packet_loss_fail_pct": self.config.packet_loss_fail_pct,
                 "saturation_definition": "absolute ADC count >= 99% of 24-bit full scale",
-                "rms_definition": "demeaned time-domain RMS in scaled microvolts",
-                "runtime_contact_rule": "RMS below 0.2x or above 5x baseline for 6 seconds",
+                "flatline_rms_definition": "demeaned RMS in raw ADC counts; numerical flatline diagnostic only",
                 "flatline_duration_sec": FLATLINE_DURATION_SEC,
                 "near_zero_rms_counts": NEAR_ZERO_RMS_COUNTS,
                 "baseline_result": self.baseline_result,
                 "dropouts": self.dropout_records,
             },
-            "preprocessing": PROTOCOL_CONFIG["preprocessing"],
+            "raw_data": {
+                **PROTOCOL_CONFIG["raw_data"],
+                "packet_bytes": 33,
+                "packet_storage": "eeg_raw.bin is the exact concatenation of received BLE packets in receive order",
+                "adc_storage": "channel_0_raw and channel_1_raw are signed 24-bit ADC counts without filtering, filling, interpolation or deletion",
+                "uv_conversion": {
+                    "formula": "channel_N_uv = channel_N_raw * eeg_scale_uv_per_count",
+                    "scale_uv_per_count": self.config.eeg_scale_uv_per_count,
+                    "verification_status": self.config.scale_status,
+                },
+            },
             "protocol_flow": PROTOCOL_CONFIG["flow"],
             "hardware_note": (
                 "The experiment design mentions 4 channels, but the current BLE/OpenBCI bridge "
@@ -969,17 +886,17 @@ class ExperimentRecorder:
                 "eeg_csv": self.eeg_path.name,
                 "events_csv": self.events_path.name,
                 "raw_packets": self.raw_path.name,
-                "qc_csv": self.qc_path.name,
-                "probe_epochs_csv": "probe_epochs.csv",
-                "windows_csv": "windows.csv",
+                "acquisition_qc_csv": self.qc_path.name,
                 "probes_csv": "probes.csv",
                 "block_ratings_csv": "block_ratings.csv",
                 "quiz_responses_csv": "quiz_responses.csv",
-                "session_qc_report": "session_qc_report.json",
+                "session_acquisition_report": "session_acquisition_report.json",
+                "checksums": self.checksums_path.name,
                 "mat": self.mat_path.name,
             },
             "counts": {
                 "received_samples": self.received_order,
+                "raw_packets": self.received_order,
                 "missing_packets": self.total_missing_packets,
                 "duplicate_packets": self.duplicate_packets,
                 "saturated_samples": self.saturated_samples,
@@ -1008,12 +925,17 @@ class ExperimentRecorder:
             sample_index = int(normalized_packet[1])
             packet_gap_before = 0
             quality_flags: list[str] = []
+            started_new_segment = False
+            discontinuity_duration: Any = ""
             discontinuity = self._stream_discontinuity or (
                 self._last_packet_timestamp is not None and
                 received_timestamp - self._last_packet_timestamp >= 256 / self.config.sample_rate_hz
             )
             if discontinuity and self.last_sample_index is not None:
                 self.stream_segment += 1
+                started_new_segment = True
+                if self._last_packet_timestamp is not None:
+                    discontinuity_duration = max(0.0, received_timestamp - self._last_packet_timestamp)
                 self._sample_time_status = "counter_elapsed_ambiguous"
                 quality_flags.append("stream_discontinuity")
                 self.last_sample_index = None
@@ -1072,10 +994,6 @@ class ExperimentRecorder:
             condition = self.current_condition if self.phase == "video" else ""
             condition_type = self.current_condition_type if condition else ""
             condition_code = CONDITION_CODES[condition]
-            # A/B is an experimental condition, not an instantaneous attention label.
-            weak_label = -1
-            base_valid = int(self.phase == "video" and not quality_flags)
-
             self._eeg_writer.writerow({
                 "received_timestamp": received_timestamp,
                 "received_order": self.received_order,
@@ -1093,9 +1011,7 @@ class ExperimentRecorder:
                 "condition_label": condition,
                 "condition_type": condition_type,
                 "condition_code": condition_code,
-                "weak_label": weak_label,
                 "phase": self.phase,
-                "base_valid_for_training": base_valid,
                 "channel_0_raw": channel_0_raw,
                 "channel_1_raw": channel_1_raw,
                 "channel_0_uv": channel_0_raw * self.config.eeg_scale_uv_per_count,
@@ -1105,8 +1021,17 @@ class ExperimentRecorder:
                 "stream_segment": self.stream_segment,
                 "sample_time_status": self._sample_time_status,
             })
-            self._raw_handle.write(original_packet)
+            try:
+                self._raw_handle.write(original_packet)
+            except OSError as error:
+                self.storage_error = f"eeg_raw.bin write failed: {error}"
+                raise OSError(self.storage_error) from error
             self.received_order += 1
+            if started_new_segment:
+                self.log_event(
+                    "eeg_stream_restart", event_value=self.stream_segment,
+                    duration_sec=discontinuity_duration,
+                )
 
             flush_interval = max(1, int(round(self.config.sample_rate_hz)))
             if self.received_order % flush_interval == 0:
@@ -1191,6 +1116,7 @@ class ExperimentRecorder:
                     "rest_start", "rest_end",
                 })
             self._event_writer.writerow({
+                "event_id": context.get("client_event_id") or str(uuid.uuid4()),
                 "event_name": str(event_type),
                 "event_timestamp": timestamp,
                 **alignment,
@@ -1261,6 +1187,7 @@ class ExperimentRecorder:
                 "subject_id": self.config.subject_id,
                 "session_id": self.config.session_id,
                 "received_timestamp": context.get("received_timestamp", received_timestamp),
+                "source_client": context.get("client_id") or "recorder",
                 "timestamp_source": context.get("timestamp_source", "server"),
                 **{key: context.get(key, "") for key in (
                     "client_event_id", "client_id", "client_timestamp", "client_monotonic_ms",
@@ -1356,10 +1283,8 @@ class ExperimentRecorder:
 
     def mark_artifact(self, artifact_type: str, notes: str = "") -> None:
         self.log_event(
-            "artifact",
+            "manual_anomaly_marker",
             event_value=artifact_type,
-            exclude_before_sec=1.5,
-            exclude_after_sec=1.5,
             notes=notes,
         )
 
@@ -1398,6 +1323,8 @@ class ExperimentRecorder:
     def handle_browser_event(self, payload: dict[str, Any]) -> bool:
         """Process one browser event exactly once, even if HTTP retries it."""
         client_event_id = str(payload.get("client_event_id", "")).strip()
+        if not client_event_id:
+            raise ValueError("Browser events require a unique client_event_id")
         with self._lock:
             if not self._active:
                 raise RuntimeError("Recording has already closed")
@@ -1409,7 +1336,7 @@ class ExperimentRecorder:
                     raise ValueError(f"Event {key} does not match this recording")
             if payload.get("counterbalance_group") and str(payload["counterbalance_group"]).upper() != self.config.counterbalance_group:
                 raise ValueError("Event counterbalance_group does not match this recording")
-            if client_event_id and client_event_id in self._seen_browser_event_ids:
+            if client_event_id in self._seen_browser_event_ids:
                 return False
             client_id = str(payload.get("client_id", ""))
             if client_id in self._shutdown_acks:
@@ -1469,8 +1396,7 @@ class ExperimentRecorder:
             finally:
                 self._event_context = {}
                 self._browser_apply_state = True
-            if client_event_id:
-                self._seen_browser_event_ids.add(client_event_id)
+            self._seen_browser_event_ids.add(client_event_id)
             if client_id:
                 self._last_browser_event_ids[client_id] = client_event_id
                 self.register_browser(client_id)
@@ -1915,30 +1841,24 @@ class ExperimentRecorder:
             final_status = ("saved_with_unresolved_events" if self.unresolved_browser_events else
                             "complete" if self.phase == "complete" else "stopped")
             self.export_status = "exporting" if export_mat else "skipped"
-            self._write_metadata(status="exporting" if export_mat else final_status)
+            self.raw_file_hashes = {
+                self.eeg_path.name: _sha256_file(self.eeg_path),
+                self.raw_path.name: _sha256_file(self.raw_path),
+            }
+            _write_checksum_manifest(self.checksums_path, self.raw_file_hashes)
+            self._write_metadata(status="finalizing")
 
         try:
-            from .session_reports import build_normalized_tables, build_session_qc_report
+            from .session_reports import build_normalized_tables, build_session_acquisition_report
         except ImportError:
-            from session_reports import build_normalized_tables, build_session_qc_report
+            from session_reports import build_normalized_tables, build_session_acquisition_report
         try:
             build_normalized_tables(self.session_dir)
         except Exception as error:
             self.integrity_status = f"normalized tables failed: {error}"
 
         try:
-            from .epoch_builder import build_session_epochs
-        except ImportError:
-            from epoch_builder import build_session_epochs
-        # Derived indices must never block the raw session from being saved.
-        try:
-            build_session_epochs(self.session_dir)
-            self.epoch_status = "complete"
-        except Exception as error:
-            self.epoch_status = f"failed: {error}"
-
-        try:
-            report_path = build_session_qc_report(self.session_dir)
+            report_path = build_session_acquisition_report(self.session_dir)
             report = json.loads(report_path.read_text(encoding="utf-8"))
             self.integrity_status = str(report.get("status", "unknown"))
         except Exception as error:
@@ -1954,11 +1874,34 @@ class ExperimentRecorder:
             final_metadata["export_status"] = "complete"
             try:
                 path = export_session_to_mat(self.session_dir, metadata_override=final_metadata)
-            except Exception:
-                self.export_status = "failed"
-                self._write_metadata(status="export_failed")
-                raise
-            self.export_status = "complete"
-            self._write_metadata(status=final_status)
+            except Exception as error:
+                self.export_status = f"failed: {error}"
+            else:
+                self.export_status = "complete"
+
+        current_hashes = {
+            self.eeg_path.name: _sha256_file(self.eeg_path),
+            self.raw_path.name: _sha256_file(self.raw_path),
+        }
+        if current_hashes != self.raw_file_hashes:
+            self.integrity_status = "FAIL: raw files changed during finalization"
+            self.storage_error = self.integrity_status
+            report_path = self.session_dir / "session_acquisition_report.json"
+            if report_path.exists():
+                report = json.loads(report_path.read_text(encoding="utf-8"))
+                report["status"] = "FAIL"
+                report.setdefault("failures", []).append("raw files changed during finalization")
+                report["raw_immutability_check"] = {
+                    "before_finalization": self.raw_file_hashes,
+                    "after_finalization": current_hashes,
+                }
+                temporary = report_path.with_suffix(".json.tmp")
+                with temporary.open("w", encoding="utf-8") as handle:
+                    json.dump(report, handle, ensure_ascii=False, indent=2)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                temporary.replace(report_path)
+        self._write_metadata(status=final_status)
+        if export_mat and self.export_status == "complete":
             return path
         return None

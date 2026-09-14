@@ -10,7 +10,7 @@ import time
 import tkinter as tk
 import uuid
 from pathlib import Path
-from tkinter import messagebox, simpledialog, ttk
+from tkinter import messagebox, ttk
 
 import tornado.platform.asyncio
 import tornado.web
@@ -118,6 +118,7 @@ async def send_device_command(command: bytes):
 
 async def ble_task():
     global ble_client, ble_connected
+    connection_count = 0
     while True:
         try:
             print(f"Scanning for {TARGET_NAME} ...")
@@ -135,7 +136,9 @@ async def ble_task():
                 print(f"Connected to {device.address}")
                 await client.start_notify(NOTIFY_CHAR_UUID, notify_handler)
                 if active_recorder is not None:
-                    active_recorder.log_event("device_connected", event_value=str(device.address))
+                    event_type = "device_connected" if connection_count == 0 else "device_reconnected"
+                    active_recorder.log_event(event_type, event_value=str(device.address))
+                connection_count += 1
                 while client.is_connected:
                     await asyncio.sleep(0.1)
         except asyncio.CancelledError:
@@ -340,6 +343,7 @@ class ExperimentApp:
         self.condition_var = tk.StringVar(value="-")
         self._order_refresh_job = None
         self._disconnect_alerted = False
+        self._storage_error_alerted = False
         self._build_setup()
         self._refresh_status()
 
@@ -462,13 +466,13 @@ class ExperimentApp:
                 self.root,
                 text=(
                     "一体化模式：连续减7练习、Block、视频、注意力评分和课后题全部在网页中操作；"
-                    "请先启动数据流并完成采前QC，网页才会允许开始Block。"
+                    "请先启动数据流并完成30秒原始基线采集，网页才会允许开始Block。"
                 ),
                 wraplength=840,
                 foreground="#1f4e79",
                 font=("Microsoft YaHei", 10, "bold"),
             ).pack(fill="x", padx=16, pady=12)
-            artifacts = ttk.LabelFrame(self.root, text="异常/排除事件（自动排除前后1.5秒）", padding=12)
+            artifacts = ttk.LabelFrame(self.root, text="人工异常标记（仅记录事件，不删除或排除数据）", padding=12)
             artifacts.pack(fill="x", padx=12, pady=8)
             for name in ["咳嗽", "说话", "转头", "电极异常", "其他运动"]:
                 ttk.Button(artifacts, text=name, command=lambda n=name: self.mark_artifact(n)).pack(
@@ -476,7 +480,7 @@ class ExperimentApp:
                 )
             ttk.Label(
                 self.root,
-                text="网页须同时显示顺序正确、QC已通过、EEG数据正常。关闭本窗口会结束会话并生成MAT。",
+                text="网页须显示顺序、EEG数据流和事件队列状态。关闭本窗口会结束会话并生成原始数据校验报告。",
                 foreground="#555",
             ).pack(fill="x", padx=16, pady=10)
             return
@@ -512,7 +516,7 @@ class ExperimentApp:
         self.course_rt = tk.StringVar(value="")
         self._summary_row(summary, 0, "课堂题", self.course_correct, self.course_total, self.course_rt, self.save_course_summary)
 
-        artifacts = ttk.LabelFrame(self.root, text="异常/排除事件（自动排除前后1.5秒）", padding=10)
+        artifacts = ttk.LabelFrame(self.root, text="人工异常标记（仅记录事件，不删除或排除数据）", padding=10)
         artifacts.pack(fill="x", padx=12, pady=6)
         for name in ["咳嗽", "说话", "转头", "电极异常", "其他运动"]:
             ttk.Button(artifacts, text=name, command=lambda n=name: self.mark_artifact(n)).pack(side="left", padx=4)
@@ -526,24 +530,20 @@ class ExperimentApp:
         ), wraplength=700, foreground="#555").pack(fill="x", padx=16, pady=6)
 
     def _build_qc_panel(self):
-        qc = ttk.LabelFrame(self.root, text="EEG质量控制（每2秒检测，滚动窗10秒）", padding=10)
+        qc = ttk.LabelFrame(self.root, text="EEG采集状态（每2秒检查数据流，不判断训练可用性）", padding=10)
         qc.pack(fill="x", padx=12, pady=5)
 
         controls = ttk.Frame(qc)
         controls.grid(row=0, column=0, columnspan=4, sticky="ew", pady=(0, 8))
-        ttk.Label(controls, text="采前基线：固定30秒，睁眼、坐稳、尽量不动").pack(side="left")
-        ttk.Button(controls, text="开始采前QC", command=self.start_baseline_qc).pack(side="left", padx=8)
-        self.qc_override_button = ttk.Button(
-            controls, text="已排查异常，人工确认继续", command=self.approve_baseline_qc, state="disabled"
-        )
-        self.qc_override_button.pack(side="left", padx=4)
+        ttk.Label(controls, text="原始基线：固定30秒，睁眼静息；仅无数据时阻止继续").pack(side="left")
+        ttk.Button(controls, text="开始基线采集", command=self.start_baseline_qc).pack(side="left", padx=8)
 
         self.baseline_progress_var = tk.DoubleVar(value=0)
         ttk.Progressbar(
             qc, variable=self.baseline_progress_var, maximum=100
         ).grid(row=1, column=0, columnspan=4, sticky="ew", pady=(0, 8))
 
-        for column, text in enumerate(["通道", "饱和率", "RMS (µV)", "高频污染"]):
+        for column, text in enumerate(["通道", "饱和率", "最长相同值"]):
             ttk.Label(qc, text=text, font=("Microsoft YaHei", 9, "bold")).grid(
                 row=2, column=column, padx=12, pady=2, sticky="w"
             )
@@ -551,16 +551,14 @@ class ExperimentApp:
         for channel in range(2):
             values = {
                 "saturation": tk.StringVar(value="--"),
-                "rms": tk.StringVar(value="--"),
-                "high_frequency": tk.StringVar(value="--"),
+                "flatline": tk.StringVar(value="--"),
             }
             self.qc_metric_vars.append(values)
             ttk.Label(qc, text=f"通道 {channel + 1}").grid(row=3 + channel, column=0, padx=12, sticky="w")
             ttk.Label(qc, textvariable=values["saturation"]).grid(row=3 + channel, column=1, padx=12, sticky="w")
-            ttk.Label(qc, textvariable=values["rms"]).grid(row=3 + channel, column=2, padx=12, sticky="w")
-            ttk.Label(qc, textvariable=values["high_frequency"]).grid(row=3 + channel, column=3, padx=12, sticky="w")
+            ttk.Label(qc, textvariable=values["flatline"]).grid(row=3 + channel, column=2, padx=12, sticky="w")
 
-        self.qc_shared_var = tk.StringVar(value="丢包率：--　数据龄：--")
+        self.qc_shared_var = tk.StringVar(value="样本：0　采样率：--　丢包率：--　事件队列：0　原始文件：写入中")
         ttk.Label(qc, textvariable=self.qc_shared_var).grid(row=5, column=0, columnspan=4, sticky="w", padx=12, pady=(5, 0))
         self.qc_status_var = tk.StringVar(value="等待数据。先按设备要求发送 S 或 b 启动数据流。")
         self.qc_status_label = ttk.Label(
@@ -573,33 +571,9 @@ class ExperimentApp:
     def start_baseline_qc(self):
         try:
             active_recorder.start_baseline(30.0)
-            self.status_var.set("30秒睁眼静息QC已开始；请坐稳并尽量不动。")
-            self.qc_override_button.configure(state="disabled")
+            self.status_var.set("30秒睁眼静息原始基线已开始；请坐稳并尽量不动。")
         except Exception as exc:
-            messagebox.showerror("无法开始采前QC", str(exc))
-
-    def approve_baseline_qc(self):
-        if not messagebox.askyesno(
-            "人工确认",
-            "请确认已重戴耳机，并检查参考地、电极接触、供电和充电线。\n\n"
-            "确定已完成排查，并允许开始正式实验吗？",
-        ):
-            return
-        try:
-            operator_id = active_recorder.config.operator_id or simpledialog.askstring(
-                "实验员编号", "请输入执行override的实验员编号：", parent=self.root
-            )
-            if not operator_id:
-                return
-            reason = simpledialog.askstring(
-                "Override原因", "请填写排查过程和仍需继续的具体原因：", parent=self.root
-            )
-            if not reason:
-                return
-            active_recorder.approve_baseline_override(operator_id, reason)
-            self.status_var.set("已记录人工QC确认；网页现可开始Block。")
-        except Exception as exc:
-            messagebox.showerror("无法确认QC", str(exc))
+            messagebox.showerror("无法开始基线采集", str(exc))
 
     @staticmethod
     def _format_metric(value, suffix=""):
@@ -710,35 +684,38 @@ class ExperimentApp:
                 break
             values = self.qc_metric_vars[channel_index]
             values["saturation"].set(self._format_metric(channel.get("saturation_rate_pct"), "%"))
-            values["rms"].set(self._format_metric(channel.get("rms_uv")))
-            values["high_frequency"].set(self._format_metric(channel.get("high_frequency_ratio_pct"), "%"))
+            values["flatline"].set(self._format_metric(channel.get("longest_unchanged_sec"), "秒"))
 
         loss_text = self._format_metric(qc.get("packet_loss_rate_pct"), "%")
-        age_text = self._format_metric(data_age, "秒")
-        self.qc_shared_var.set(f"丢包率：{loss_text}　数据龄：{age_text}")
+        rate_text = self._format_metric(qc.get("estimated_sample_rate_hz"), " Hz")
+        pending = int(qc.get("browser_pending_events", 0))
+        save_status = "异常" if qc.get("raw_save_status") == "error" else "写入中"
+        self.qc_shared_var.set(
+            f"样本：{int(qc.get('received_samples_total', 0))}　采样率：{rate_text}　"
+            f"丢包率：{loss_text}　事件队列：{pending}　原始文件：{save_status}"
+        )
+        if qc.get("raw_save_error") and not self._storage_error_alerted:
+            self._storage_error_alerted = True
+            messagebox.showerror("原始数据写入失败", str(qc["raw_save_error"]))
         baseline = qc.get("baseline", {})
         target = max(1.0, float(baseline.get("target_sec", 30.0)))
         recorded = float(baseline.get("recorded_sec", 0.0))
         self.baseline_progress_var.set(min(100.0, recorded / target * 100.0))
 
         if baseline.get("complete") and baseline.get("passed"):
-            prefix = "采前QC通过，可以开始正式实验。"
-        elif baseline.get("complete") and baseline.get("override"):
-            prefix = "采前QC有异常，已由实验员完成排查并确认继续。"
+            prefix = "基线原始数据已采集，可以开始正式实验。"
         elif baseline.get("complete"):
-            prefix = "采前QC未通过：请先排查并重新检测；必要时人工确认。"
+            prefix = "基线期间没有持续收到EEG，请恢复数据流后重新采集。"
         elif baseline.get("started"):
-            prefix = f"采前QC采集中：已记录 {recorded:.1f}/{target:.0f} 秒。"
+            prefix = f"基线采集中：已记录 {recorded:.1f}/{target:.0f} 秒。"
         else:
-            prefix = "尚未开始采前QC。"
+            prefix = "尚未开始基线采集。"
         details = " ".join(str(item) for item in qc.get("messages", []))
         self.qc_status_var.set(f"{prefix} {details}".strip())
         status_color = {"good": "#17683f", "warning": "#8a5200", "bad": "#c62828"}.get(
             qc.get("status"), "#555"
         )
         self.qc_status_label.configure(foreground=status_color)
-        can_override = baseline.get("complete") and not baseline.get("passed") and not baseline.get("override")
-        self.qc_override_button.configure(state="normal" if can_override else "disabled")
         self.root.after(500, self._refresh_status)
 
     def on_close(self):
@@ -747,7 +724,7 @@ class ExperimentApp:
         if active_recorder is None:
             self.root.destroy()
             return
-        if not messagebox.askyesno("结束实验", "确定结束本次会话并生成MAT文件吗？"):
+        if not messagebox.askyesno("结束实验", "确定结束本次会话、校验原始文件并生成原始MAT吗？"):
             return
         self._closing = True
         if active_recorder._active:
@@ -771,12 +748,13 @@ class ExperimentApp:
             mat_path = active_recorder.stop(export_mat=True)
             unresolved = sum(len(items) for items in active_recorder.unresolved_browser_events.values())
             recovery_note = f"\n\n另有 {unresolved} 个事件未通过校验，原始内容已保存到 pending_browser_events.json，需后续核对。" if unresolved else ""
-            messagebox.showinfo("保存完成", f"CSV、事件、原始包和MAT已保存到：\n{active_recorder.session_dir}\n\nMAT：{mat_path}{recovery_note}")
+            mat_note = f"\n\n原始MAT：{mat_path}" if mat_path else "\n\n原始MAT导出失败，但CSV、事件和原始包均已保留。"
+            messagebox.showinfo("保存完成", f"原始EEG、事件、原始包、校验和与采集报告已保存到：\n{active_recorder.session_dir}{mat_note}{recovery_note}")
         except Exception as exc:
             self._closing = False
             if active_recorder._active:
                 active_recorder.cancel_shutdown()
-            self.status_var.set("保存未完成；已保留窗口和现有数据，可再次关闭以重试。")
+            self.status_var.set("保存未完成；已接收的原始数据仍保留，可再次关闭以重试。")
             messagebox.showerror("保存未完成", f"尚未确认全部保存成功，现有数据保留。\n{exc}")
             return
         if background_loop is not None:

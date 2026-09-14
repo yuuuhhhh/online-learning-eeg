@@ -1,0 +1,7 @@
+deprecated: legacy_derived_output
+
+The checked-in v2.1 synthetic fixtures may contain windows.csv,
+probe_epochs.csv, session_qc_report.json, or session.mat. They are retained
+only for historical traceability and are not outputs of the v2.2 acquisition
+runtime. Regenerating fixtures with tools/generate_validation_sessions.py uses
+the raw-acquisition-only output set.

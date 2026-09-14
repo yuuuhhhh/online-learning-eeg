@@ -121,10 +121,10 @@ class RecorderTests(unittest.TestCase):
             self.rec.handle_browser_event(payload)
 
     def test_event_and_qc_schemas_include_required_direct_fields(self):
-        for field in ("event_name", "event_type", "recorder_timestamp", "browser_timestamp",
+        for field in ("event_id", "event_name", "event_type", "recorder_timestamp", "browser_timestamp",
                       "device_sample_number", "subject_id", "session_id", "block_order",
                       "video_id", "condition_label", "client_event_id", "counterbalance_group",
-                      "affected_block_id"):
+                      "affected_block_id", "source_client"):
             self.assertIn(field, EVENT_CSV_COLUMNS)
         self.assertIn("signal_alive", QC_CSV_COLUMNS)
         self.assertNotIn("channel_0_line_50hz_ratio_pct", QC_CSV_COLUMNS)
@@ -133,7 +133,9 @@ class RecorderTests(unittest.TestCase):
     def test_channel_qc_has_no_50hz_ratio(self):
         metrics = channel_metrics(range(600), sample_rate_hz=250, scale_uv_per_count=1.0)
         self.assertNotIn("line_50hz_ratio_pct", metrics)
-        self.assertIn("high_frequency_ratio_pct", metrics)
+        self.assertNotIn("high_frequency_ratio_pct", metrics)
+        self.assertNotIn("rms_uv", metrics)
+        self.assertIn("rms_counts", metrics)
 
     def test_recovery_event_records_affected_block_without_overwriting_current_context(self):
         self.rec.handle_browser_event(self.payload(
@@ -162,15 +164,30 @@ class RecorderTests(unittest.TestCase):
         self.assertEqual(len(self.rec.dropout_records), 1)
         self.assertGreaterEqual(self.rec.dropout_records[0]["duration_sec"], 2.0)
 
-    def test_override_requires_operator_and_reason(self):
-        self.rec.baseline_complete = True
-        self.rec.baseline_passed = False
-        with self.assertRaises(ValueError):
-            self.rec.approve_baseline_override("", "reason")
-        with self.assertRaises(ValueError):
-            self.rec.approve_baseline_override("op-1", "")
-        self.rec.approve_baseline_override("op-1", "electrode checked")
-        self.assertEqual(self.rec.baseline_override_details["operator_id"], "op-1")
+    def test_baseline_signal_warnings_do_not_create_a_quality_gate(self):
+        self.rec.subtraction_practice["confirmed"] = True
+        self.rec.start_baseline(30)
+        anchor = self.rec.clock_time()
+        self.rec.baseline_started_timestamp = anchor - 31
+        self.rec._last_packet_timestamp = anchor
+        self.rec._qc_samples.append((anchor - 30, 0, 0, 0))
+        channel = {
+            "sample_count": 7500, "saturation_rate_pct": 1.0, "rms_counts": 0.0,
+            "constant_value": True, "near_zero_rms": True,
+            "longest_unchanged_sec": 30.0, "invalid_flatline": True,
+        }
+        metrics = {
+            "sample_count": 7500, "window_duration_sec": 30.0,
+            "estimated_sample_rate_hz": 250.0, "missing_packets": 10,
+            "packet_loss_rate_pct": 10.0, "channels": [channel, dict(channel)],
+        }
+        with patch.object(self.rec, "clock_time", return_value=anchor), patch(
+            "session_recorder.window_metrics", return_value=metrics
+        ):
+            result = self.rec.update_qc_snapshot()
+        self.assertEqual(result["status"], "bad")
+        self.assertTrue(self.rec.baseline_passed)
+        self.assertTrue(self.rec.qc_ready_for_experiment)
 
 
 if __name__ == "__main__":

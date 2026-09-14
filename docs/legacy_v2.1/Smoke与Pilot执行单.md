@@ -1,4 +1,4 @@
-# Smoke 与 Pilot 执行单
+# Smoke 与 Pilot 执行单（v2.1 历史版，仅供追溯）
 
 ## 自动预检记录
 

@@ -1,17 +1,22 @@
 # 自动测试记录
 
-- 执行日期：2026-09-13
-- Python：22 tests，全部通过
-- 浏览器协议检查：24 checks，全部通过（含 30 秒采前 QC 和 Block 3 后 30 秒休息）
-- JavaScript 语法：通过 Node `new Function` 编译检查
-- 合成完整性夹具：完整会话 PASS；缺项会话 FAIL 且列出 4 类缺失
+- 执行日期：2026-09-14
+- Python：28 tests，全部通过
+- 浏览器协议检查：28 checks，全部通过
+- 浏览器恢复行为：8 tests，全部通过
+- Python 全仓语法编译：通过
+- Git whitespace 检查：通过
+
+覆盖重点：原始 BLE/ADC 一致性、丢包不填充、重复包标记、重连分段、事件对齐/未对齐/去重、采集异常不阻断保存、基线不产生信号质量门禁、结束时不切窗或预处理、原始文件 SHA-256、报告与 MAT 失败非致命、原始 MAT 不含窗口/epoch。
 
 执行命令：
 
 ```powershell
-.\.venv\Scripts\python.exe -m unittest discover -s tests -p "test_*.py"
+python -m unittest discover -s tests -p "test_*.py"
 node tests\test_browser_v21.js
-.\.venv\Scripts\python.exe tools\generate_validation_sessions.py
+node tests\test_browser_recovery_v21.js
+python -m compileall -q .
+git diff --check
 ```
 
-说明：自动测试不能替代真实蓝牙设备、两名参与者 smoke test 或 6–8 人 pilot。
+自动测试不能替代真实蓝牙设备 smoke test 和 pilot。

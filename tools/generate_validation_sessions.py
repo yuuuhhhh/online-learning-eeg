@@ -17,9 +17,8 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from protocol_config import load_protocol_config, planned_blocks
-from epoch_builder import PROBE_EPOCH_COLUMNS
 from mat_exporter import export_session_to_mat
-from session_reports import build_session_qc_report
+from session_reports import build_session_acquisition_report
 from session_recorder import EEG_CSV_COLUMNS
 
 
@@ -53,6 +52,7 @@ def build_rows() -> list[dict]:
             "event_type": event_name,
             "recorder_timestamp": timestamp,
             "device_sample_number": int((timestamp - 1_800_000_000) * 250),
+            "alignment_status": "host_receive_nearest",
             "subject_id": "synthetic-complete",
             "session_id": "ses-validation",
             "run_id": "synthetic-run",
@@ -125,7 +125,7 @@ def write_run(path: Path, rows: list[dict], label: str) -> None:
                 "6": {"start_number": 821},
             },
         },
-        "preprocessing": config["preprocessing"],
+        "raw_data": {**config["raw_data"], "packet_bytes": 33},
         "labels": {"-1": "no_instantaneous_attention_label"},
         "notice": "Synthetic integrity-test fixture; not scientific EEG data.",
     }
@@ -138,21 +138,17 @@ def write_run(path: Path, rows: list[dict], label: str) -> None:
         "packet_gap_before": 0, "quality_flag": "", "block_id": 1,
         "block_order": 1, "session_half": 1, "counterbalance_group": "G01",
         "video_id": "V1", "condition": "A", "condition_label": "A",
-        "condition_type": "focused", "condition_code": 0, "weak_label": -1,
-        "phase": "video", "base_valid_for_training": 1,
+        "condition_type": "focused", "condition_code": 0,
+        "phase": "video",
         "channel_0_raw": 100, "channel_1_raw": -100,
         "channel_0_uv": 2.4, "channel_1_uv": -2.4,
         "is_formal_experiment": 1, "stream_segment": 0,
         "sample_time_status": "synthetic",
     })
     write_csv(path / "eeg.csv", [eeg_row])
-    (path / "eeg_raw.bin").write_bytes(b"SYNTHETIC_VALIDATION_ONLY")
-    write_csv(path / "qc.csv", [{"channel_0_rms_uv": 4.2, "channel_1_rms_uv": 4.5, "signal_alive": 1}])
-    write_csv(path / "windows.csv", [
-        {"block_id": block_id, "quality_label": "GOOD"} for block_id in range(1, 7)
-    ])
-    build_session_qc_report(path)
-    write_header(path / "probe_epochs.csv", PROBE_EPOCH_COLUMNS)
+    (path / "eeg_raw.bin").write_bytes(bytes(33))
+    write_csv(path / "acquisition_qc.csv", [{"signal_alive": 1, "channel_0_invalid_flatline": False, "channel_1_invalid_flatline": False}])
+    build_session_acquisition_report(path)
     export_session_to_mat(path)
 
 

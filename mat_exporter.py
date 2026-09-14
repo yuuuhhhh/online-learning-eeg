@@ -32,11 +32,10 @@ NUMERIC_EVENT_COLUMNS = [
 
 QC_TEXT_COLUMNS = {"context", "status", "messages"}
 NUMERIC_INDEX_COLUMNS = {
-    "block_id", "block_order", "sequence_order", "window_index",
+    "block_id", "block_order", "sequence_order",
     "probe_response", "probe_confidence", "seconds_to_probe",
     "probe_onset_sample", "probe_onset_timestamp", "probe_onset_video_time_sec",
-    "epoch_duration_sec", "start_sample", "end_sample",
-    "start_timestamp", "end_timestamp", "sample_count", "window_count",
+    "sample_count",
     "course_attention_rating", "mental_effort", "video_interest", "video_difficulty",
     "subtraction_compliance_low_pct", "subtraction_compliance_high_pct",
     "subtraction_difficulty", "reported_final_number", "response_index", "is_correct",
@@ -44,7 +43,7 @@ NUMERIC_INDEX_COLUMNS = {
 }
 EEG_NUMERIC_COLUMNS = {
     "received_timestamp", "received_order", "device_sample_number", "sample_index",
-    "sample_time_sec", "packet_gap_before", "weak_label", "base_valid_for_training",
+    "sample_time_sec", "packet_gap_before",
     "channel_0_raw", "channel_1_raw", "channel_0_uv", "channel_1_uv", "stream_segment",
     "condition_code", "is_formal_experiment",
 }
@@ -99,69 +98,13 @@ def _valid_mat_field(name: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9_]{0,62}", name))
 
 
-def build_training_mask(eeg: pd.DataFrame, events: pd.DataFrame, metadata: dict) -> np.ndarray:
-    """Apply protocol exclusions while preserving block-level labels."""
-    sample_time = _numeric_array(eeg["sample_time_sec"])
-    mask = _numeric_array(eeg["base_valid_for_training"], fill=0).astype(bool)
-    mask &= np.isfinite(sample_time)
-    for column in ("channel_0_raw", "channel_1_raw"):
-        mask &= np.isfinite(_numeric_array(eeg[column]))
-    rules = {"exclude_video_start_sec": 10.0, "exclude_video_end_sec": 5.0,
-             **metadata.get("training_rules", {})}
-
-    eeg_block_ids = pd.to_numeric(eeg["block_id"], errors="coerce").fillna(0).astype(int)
-    event_block_ids = pd.to_numeric(events["block_id"], errors="coerce").fillna(0).astype(int)
-    for block_id in sorted(x for x in eeg_block_ids.unique() if x > 0):
-        block_rows = eeg_block_ids == block_id
-        block_events = events[event_block_ids == block_id]
-        starts = pd.to_numeric(block_events.loc[block_events["event_type"] == "video_start", "sample_time_sec"], errors="coerce").dropna()
-        ends = pd.to_numeric(block_events.loc[block_events["event_type"] == "video_end", "sample_time_sec"], errors="coerce").dropna()
-        if len(starts):
-            start = float(starts.iloc[0]) + float(rules["exclude_video_start_sec"])
-            mask[block_rows & (sample_time < start)] = False
-        if len(ends):
-            end = float(ends.iloc[-1]) - float(rules["exclude_video_end_sec"])
-            mask[block_rows & (sample_time > end)] = False
-
-    for _, event in events.iterrows():
-        before = pd.to_numeric(pd.Series([event.get("exclude_before_sec")]), errors="coerce").iloc[0]
-        after = pd.to_numeric(pd.Series([event.get("exclude_after_sec")]), errors="coerce").iloc[0]
-        if pd.isna(before):
-            before = 0.0
-        if pd.isna(after):
-            after = 0.0
-        if before > 0 or after > 0:
-            center = pd.to_numeric(event["sample_time_sec"], errors="coerce")
-            if pd.isna(center):
-                continue
-            mask[(sample_time >= center - float(before)) & (sample_time <= center + float(after))] = False
-
-    return mask.astype(np.uint8)
-
-
-def _ensure_attention_index(session_dir: Path, events: pd.DataFrame) -> None:
-    """Build the probe index for a probe session that has not been indexed yet."""
-    if (session_dir / "windows.csv").exists():
-        return
-    if "probe_onset" not in set(events.get("event_type", pd.Series(dtype=str))):
-        return
-    try:
-        from .epoch_builder import build_session_epochs
-    except ImportError:
-        from epoch_builder import build_session_epochs
-    try:
-        build_session_epochs(session_dir)
-    except Exception:
-        pass  # An index failure must never stop the session from exporting.
-
-
 def export_session_to_mat(session_dir: Path | str, *, metadata_override: dict | None = None) -> Path:
     session_dir = Path(session_dir).resolve()
     eeg_path = session_dir / "eeg.csv"
     events_path = session_dir / "events.csv"
     metadata_path = session_dir / "metadata.json"
-    qc_path = session_dir / "qc.csv"
-    output_path = session_dir / "session.mat"
+    qc_path = session_dir / "acquisition_qc.csv"
+    output_path = session_dir / "session_raw.mat"
 
     if not eeg_path.exists() or not events_path.exists() or not metadata_path.exists():
         raise FileNotFoundError("Session directory must contain eeg.csv, events.csv and metadata.json")
@@ -172,8 +115,6 @@ def export_session_to_mat(session_dir: Path | str, *, metadata_override: dict | 
         if column not in events:
             events[column] = ""
     metadata = metadata_override if metadata_override is not None else json.loads(metadata_path.read_text(encoding="utf-8"))
-    _ensure_attention_index(session_dir, events)
-    training_mask = build_training_mask(eeg, events, metadata)
 
     block_ids = pd.to_numeric(eeg["block_id"], errors="coerce").fillna(0).to_numpy(dtype=np.int16)
     if "group_id" in eeg.columns:
@@ -185,7 +126,6 @@ def export_session_to_mat(session_dir: Path | str, *, metadata_override: dict | 
         "received_timestamp": np.float64, "received_order": np.int64,
         "device_sample_number": np.int64, "sample_index": np.uint8,
         "sample_time_sec": np.float64, "packet_gap_before": np.uint16,
-        "weak_label": np.int8, "base_valid_for_training": np.uint8,
     }
     if "stream_segment" in eeg:
         numeric_eeg["stream_segment"] = np.uint32
@@ -202,7 +142,6 @@ def export_session_to_mat(session_dir: Path | str, *, metadata_override: dict | 
         "condition": _string_array(eeg["condition"]),
         "phase": _string_array(eeg["phase"]),
         "quality_flag": _string_array(eeg["quality_flag"]),
-        "training_mask": training_mask,
     }
     if "sample_time_status" in eeg:
         eeg_struct["sample_time_status"] = _string_array(eeg["sample_time_status"])
@@ -258,11 +197,8 @@ def export_session_to_mat(session_dir: Path | str, *, metadata_override: dict | 
             conditions.get("B", {}).get("condition_type", "legacy_B"),
         ], dtype=object),
     }
-    # Derived attention indices are optional: sessions recorded before stage 4
-    # simply do not carry these keys.
+    # Behavioral tables contain raw responses derived directly from events.csv.
     for name, path in (
-        ("probe_epochs", session_dir / "probe_epochs.csv"),
-        ("windows", session_dir / "windows.csv"),
         ("probes", session_dir / "probes.csv"),
         ("block_ratings", session_dir / "block_ratings.csv"),
         ("quiz_responses", session_dir / "quiz_responses.csv"),
@@ -293,9 +229,9 @@ def export_session_to_mat(session_dir: Path | str, *, metadata_override: dict | 
                 qc_struct[column] = _numeric_array(qc[column])
         mat_payload["qc"] = qc_struct
         mat_payload["csv_text"]["qc"] = _text_table(qc)
-    report_path = session_dir / "session_qc_report.json"
+    report_path = session_dir / "session_acquisition_report.json"
     if report_path.exists():
-        mat_payload["session_qc_report_json"] = report_path.read_text(encoding="utf-8")
+        mat_payload["session_acquisition_report_json"] = report_path.read_text(encoding="utf-8")
     temporary_path = output_path.with_suffix(".mat.tmp")
     try:
         with temporary_path.open("wb") as handle:

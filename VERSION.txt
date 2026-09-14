@@ -1,26 +1,22 @@
-线上学习 EEG 一体化实验系统
-software_version: 2.1.1
+原始 EEG 与实验标签同步采集系统
+software_version: 2.2.0
 protocol_version: 2.1
-schema_version: 2.1.0
-config_version: 2.1-pilot-2026-09-13-short-session
-发布日期: 2026-09-13
-状态: pilot 前验收版；formal 已锁定
+schema_version: 2.2.0
+config_version: 2.2-raw-acquisition-2026-09-14
+发布日期: 2026-09-14
+状态: pilot 原始采集版；formal 已锁定
 
 本版完成：
-- 新 BBBD 脑内连续减7范式和练习门禁
-- G01-G12 视频×条件×位置平衡
-- 每 block 4 个 thought probe、confidence 和 self-caught
-- 完整问卷、每视频 4 道题、Block 1–5 后均为 30 秒休息
-- 固定 30 秒睁眼静息 QC、2 秒 EEG 中断自动暂停/人工恢复
-- 规范化行为表、双层标签窗口、会话完整性报告和 MAT 导出
-- 版本化协议配置与 SHA-256 可追溯性
-- 六段 2026-09-12 新课堂视频和新题库
-- 采集阶段完全去除 50 Hz 测量；离线副本提供 50 Hz 陷波/带阻
-- 修复在采集会话建立前先选视频时全部显示未匹配；现在会暂存文件并在配置到达后自动重匹配，同时支持“视频1-视频6”编号兜底
-- 视频选择区新增固定 V1-V6 六格状态面板，逐格显示配置加载、待选择、未匹配或已匹配，并展示实际文件名和匹配方式
+- 原始 BLE 包、signed 24-bit ADC counts、实验事件和行为标签同步保存
+- 丢包不填充、重复包显式标记、重连创建 stream_segment
+- 事件唯一 ID、浏览器去重、最近真实 EEG 样本对齐及未对齐保留
+- 采集期仅显示连接、数据流、采样率、丢包、重复、断流、饱和和平线
+- 取消 RMS 相对基线、高频比例、窗口质量和训练可用性控制
+- 结束时不切窗、不预处理；离线工具移至 offline_analysis
+- 生成 acquisition_qc.csv、session_acquisition_report.json、checksums.sha256 和可选 session_raw.mat
+- 报告/MAT 失败不删除原始文件，报告前后复核原始 SHA-256
 
 仍须负责人/实验组完成：
 - 2 人 smoke test 和 6-8 人 pilot
 - 补充 2-3 段候选备用视频
-- 根据 pilot 冻结 probe 数、mask、视频时长误差和 QC 阈值
-- 冻结后发布 v2.2 Final 并将 frozen_for_formal 设为 true
+- pilot 后冻结正式实验流程参数并将 frozen_for_formal 设为 true

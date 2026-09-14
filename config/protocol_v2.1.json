@@ -1,8 +1,8 @@
 {
-  "schema_version": "2.1.0",
-  "config_version": "2.1-pilot-2026-09-13-short-session",
+  "schema_version": "2.2.0",
+  "config_version": "2.2-raw-acquisition-2026-09-14",
   "protocol_version": "2.1",
-  "software_version": "2.1.1",
+  "software_version": "2.2.0",
   "frozen_for_formal": false,
   "study_phases": ["smoke", "pilot", "formal"],
   "conditions": {
@@ -66,23 +66,17 @@
     "packet_loss_warning_pct": 1.0,
     "packet_loss_fail_pct": 5.0,
     "flatline_duration_sec": 2.0,
-    "extreme_dc_offset_counts": 4000000,
-    "extreme_amplitude_counts": 7500000,
-    "high_frequency_band_hz": [70.0, 100.0],
-    "high_frequency_ratio_warning_pct": 40.0,
-    "high_frequency_ratio_fail_pct": 70.0,
-    "threshold_status": "provisional_freeze_after_pilot",
-    "acquisition_line_noise_measurement": false
+    "threshold_status": "acquisition_diagnostics_only",
+    "affects_recording_or_labels": false
   },
-  "preprocessing": {
-    "preserve_raw_eeg": true,
-    "line_noise_filter": {
-      "enabled": true,
-      "stage": "offline_copy_only",
-      "type": "notch_bandstop",
-      "center_hz": 50.0,
-      "note": "去除50Hz工频干扰应使用陷波/带阻而不是保留50Hz的带通；采集程序不测量50Hz比例。"
-    }
+  "raw_data": {
+    "packet_format": "OpenBCI-compatible 33-byte packet received over BLE",
+    "packet_protocol_version": "MindBridge-v3.11/OpenBCI-33",
+    "parser_version": "raw-adc-v1",
+    "eeg_schema_version": "2.2.0",
+    "event_schema_version": "2.2.0",
+    "missing_sample_policy": "never_fill_or_interpolate",
+    "immutability": "sha256_after_close"
   },
   "materials": {
     "version": "attention-course-2026-09-12",

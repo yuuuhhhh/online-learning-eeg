@@ -121,7 +121,7 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
 .orderBanner{margin-top:12px;padding:13px;border-radius:9px;background:#eef5ff;border:1px solid #9fc1ec;color:#174f91;font-size:17px;font-weight:900;text-align:center}
 .qcState{padding:11px;border-radius:9px;background:#f1f3f5;color:#55616d;font-weight:900;margin-bottom:10px}
 .qcState.good{background:#e7f7ee;color:#17683f}.qcState.warning{background:#fff3db;color:#8a5200}.qcState.bad{background:#ffe3e3;color:#a41313;border:2px solid #d63030}
-.qcGrid{display:grid;grid-template-columns:1.2fr 1fr 1fr 1fr;gap:6px;font-size:13px}
+.qcGrid{display:grid;grid-template-columns:1.2fr 1fr 1fr;gap:6px;font-size:13px}
 .qcGrid>div{padding:7px;border-bottom:1px solid #e3e8ed}.qcHead{font-weight:900;color:#45515c}
 .small{font-size:12px;color:#687583}
 @media(max-width:1050px){
@@ -308,16 +308,16 @@ video{width:100%;height:100%;object-fit:contain;background:#000}
       </div>
 
       <div class="card pad">
-        <div class="sectionTitle">EEG质量控制</div>
-        <div class="qcState" id="qcState">等待采集端QC</div>
+        <div class="sectionTitle">EEG采集状态</div>
+        <div class="qcState" id="qcState">等待采集端状态</div>
         <div class="qcGrid">
-          <div class="qcHead">通道</div><div class="qcHead">饱和率</div><div class="qcHead">RMS</div><div class="qcHead">高频污染</div>
-          <div>通道 1</div><div id="qcSat0">--</div><div id="qcRms0">--</div><div id="qcHigh0">--</div>
-          <div>通道 2</div><div id="qcSat1">--</div><div id="qcRms1">--</div><div id="qcHigh1">--</div>
+          <div class="qcHead">通道</div><div class="qcHead">饱和率</div><div class="qcHead">最长相同值</div>
+          <div>通道 1</div><div id="qcSat0">--</div><div id="qcFlat0">--</div>
+          <div>通道 2</div><div id="qcSat1">--</div><div id="qcFlat1">--</div>
         </div>
-        <div class="small" id="qcShared" style="margin-top:9px">丢包率：--｜数据龄：--</div>
+        <div class="small" id="qcShared" style="margin-top:9px">样本：0｜采样率：--｜丢包率：--｜事件队列：0｜原始文件：写入中</div>
         <div class="small" id="qcBaseline" style="margin-top:6px">采前基线：未开始</div>
-        <div class="small" style="margin-top:6px">QC每2秒更新。连续约2秒无EEG会自动暂停视频；恢复后须由实验员确认同步再继续。采集阶段不测量50Hz比例。</div>
+        <div class="small" style="margin-top:6px">状态每2秒更新，仅检查连接、数据流、丢包、饱和与平线，不产生训练可用性结论。连续约2秒无EEG会自动暂停视频，恢复后须由实验员确认同步再继续。</div>
       </div>
 
       <div class="card pad">
@@ -432,14 +432,13 @@ function applyQc(qc){
   const state=qc.status||"waiting";
   const box=$("qcState");box.className=`qcState ${state}`;
   const details=(qc.messages||[]).join(" ");
-  box.textContent=`${qc.status_label||"等待QC"}${details?`｜${details}`:""}`;
+  box.textContent=`${qc.status_label||"等待采集状态"}${details?`｜${details}`:""}`;
   [0,1].forEach(index=>{
     const channel=(qc.channels||[])[index]||{};
     $(`qcSat${index}`).textContent=fmtQc(channel.saturation_rate_pct,"%");
-    $(`qcRms${index}`).textContent=fmtQc(channel.rms_uv," µV");
-    $(`qcHigh${index}`).textContent=fmtQc(channel.high_frequency_ratio_pct,"%");
+    $(`qcFlat${index}`).textContent=fmtQc(channel.longest_unchanged_sec,"秒");
   });
-  $("qcShared").textContent=`丢包率：${fmtQc(qc.packet_loss_rate_pct,"%")}｜数据龄：${fmtQc(qc.data_age_sec,"秒")}｜信号：${qc.signal_alive?"在线":"中断"}`;
+  $("qcShared").textContent=`样本：${Number(qc.received_samples_total||0)}｜采样率：${fmtQc(qc.estimated_sample_rate_hz," Hz")}｜丢包率：${fmtQc(qc.packet_loss_rate_pct,"%")}｜事件队列：${Number(qc.browser_pending_events||0)}｜原始文件：${qc.raw_save_status==="error"?"写入失败":"写入中"}`;
   const signalAlive=qc.signal_alive===true;
   if(lastSignalAlive!==false&&!signalAlive&&blockStarted&&!blockFinished){
     if(!video.paused)video.pause();
@@ -454,11 +453,9 @@ function applyQc(qc){
   lastSignalAlive=signalAlive;
   const baseline=qc.baseline||{};
   if(baseline.complete&&baseline.passed){
-    $("qcBaseline").textContent="采前基线：已通过，可以开始正式实验";
-  }else if(baseline.complete&&baseline.override){
-    $("qcBaseline").textContent="采前基线：异常已由实验员排查并确认";
+    $("qcBaseline").textContent="原始基线：采集完成，可以开始正式实验";
   }else if(baseline.complete){
-    $("qcBaseline").textContent="采前基线：未通过，请回到采集窗口排查/重测";
+    $("qcBaseline").textContent="原始基线：没有持续收到EEG，请恢复数据流后重测";
   }else if(baseline.started){
     $("qcBaseline").textContent=`采前基线：采集中 ${fmtQc(baseline.recorded_sec)} / ${fmtQc(baseline.target_sec)} 秒`;
   }else{
@@ -468,7 +465,7 @@ function applyQc(qc){
 function refreshStartButton(){
   const ready=Boolean(
     videoMap.size===6&&videoMap.has($("topicSelect").value)&&eegEndpoint&&activeEegSession?.qc_ready_for_experiment&&
-    activeEegSession?.qc?.signal_alive===true&&activeEegSession?.qc?.status!=="bad"&&practiceConfirmed&&!blockStarted&&!shutdownPreparing&&!recoveryBlocked
+    activeEegSession?.qc?.signal_alive===true&&practiceConfirmed&&!blockStarted&&!shutdownPreparing&&!recoveryBlocked
   );
   $("startBlock").disabled=!ready;
 }
@@ -566,7 +563,7 @@ function applyEegSession(info){
         if(recoveryReportedRun!==info.run_id){
           recoveryReportedRun=info.run_id;
           recordEvent("browser_recovery_blocked",{reason:recoveryReason,server_phase:info.phase,affected_block_id:affectedBlock});
-          alert(`${recoveryReason}。为避免覆盖或错位，本页面已锁定。请结束采集并保留该 run，session_qc_report.json 会标记缺项。`);
+          alert(`${recoveryReason}。为避免覆盖或错位，本页面已锁定。请结束采集并保留该 run，session_acquisition_report.json 会标记缺项。`);
         }
       }
     }
@@ -982,8 +979,8 @@ async function startBlock(){
   if(!video.src){alert("请先选择并载入视频。");return}
   if(videoMap.size!==6){alert("必须先选择并正确匹配全部6个正式视频。");return}
   if(!eegEndpoint||!activeEegSession){alert("尚未连接EEG采集端。请先启动Python采集程序，并确认页面右上角显示“EEG已连接”。");return}
-  if(!activeEegSession.qc_ready_for_experiment){alert("采前QC尚未通过或异常尚未确认。请先回到采集窗口完成固定30秒睁眼静息QC。");return}
-  if(activeEegSession.qc?.status==="bad"){alert("当前EEG质量异常或数据已中断，请先重连并排查电极/参考地/供电。");return}
+  if(!activeEegSession.qc_ready_for_experiment){alert("原始基线尚未采集完成。请先回到采集窗口完成固定30秒睁眼静息基线。");return}
+  if(activeEegSession.qc?.signal_alive!==true){alert("当前没有持续收到EEG，请先恢复连接和数据流。");return}
   const blockNum=blockNumber();
   const expectedBlock=activeEegSession.planned_blocks[blockNum-1];
   const expectedCondition=expectedBlock.condition_label;
@@ -1425,7 +1422,7 @@ function submitQuiz(){
     nextInstruction=`进入 ${planned} 秒 Block 间休息。`;
     $("newBlock").disabled=true;
   }else{
-    nextInstruction="六个 Block 已完成，正在显示结束完整性预检查；关闭采集端时会生成权威 session_qc_report.json。";
+    nextInstruction="六个 Block 已完成，正在显示结束完整性预检查；关闭采集端时会生成权威 session_acquisition_report.json。";
     $("newBlock").disabled=true;
     $("newBlock").textContent="实验已完成";
   }

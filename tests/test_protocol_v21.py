@@ -17,7 +17,7 @@ class ProtocolConfigTests(unittest.TestCase):
     def test_config_is_valid_and_traceable(self):
         config, digest, path = load_protocol_config(ROOT)
         self.assertEqual(config["protocol_version"], "2.1")
-        self.assertEqual(config["software_version"], "2.1.1")
+        self.assertEqual(config["software_version"], "2.2.0")
         self.assertEqual(config["flow"]["baseline_duration_sec"], 30)
         self.assertEqual(
             config["flow"]["rest_durations_after_block_sec"],
@@ -77,9 +77,11 @@ class ProtocolConfigTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot fit all 4 probes"):
             validate_probe_schedule([45, 90], 120)
 
-    def test_acquisition_does_not_measure_50hz(self):
-        self.assertFalse(PROTOCOL_CONFIG["qc"]["acquisition_line_noise_measurement"])
-        self.assertEqual(PROTOCOL_CONFIG["preprocessing"]["line_noise_filter"]["type"], "notch_bandstop")
+    def test_protocol_is_raw_acquisition_only(self):
+        self.assertFalse(PROTOCOL_CONFIG["qc"]["affects_recording_or_labels"])
+        self.assertNotIn("preprocessing", PROTOCOL_CONFIG)
+        self.assertNotIn("high_frequency_ratio_fail_pct", PROTOCOL_CONFIG["qc"])
+        self.assertEqual(PROTOCOL_CONFIG["raw_data"]["missing_sample_policy"], "never_fill_or_interpolate")
 
 
 if __name__ == "__main__":

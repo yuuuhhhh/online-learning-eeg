@@ -1,4 +1,4 @@
-"""Locate the 10 s EEG epoch before each thought probe and index its windows.
+"""Offline-only: locate the 10 s EEG epoch before each thought probe and index its windows.
 
 This module only derives sample indices and labels. The EEG itself stays in
 eeg.csv / eeg_raw.bin exactly once; nothing here copies or filters a waveform.
