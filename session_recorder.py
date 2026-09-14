@@ -116,7 +116,7 @@ EVENT_CSV_COLUMNS += [
     "eeg_received_order", "eeg_sample_number", "eeg_stream_segment", "alignment_error_ms", "alignment_status",
     "identity_status", "context_matches_current", "state_applied",
     "start_number", "generated_timestamp", "displayed_timestamp", "hidden_timestamp",
-    "after_block_id", "planned_duration", "actual_duration", "is_formal_experiment",
+    "after_block_id", "affected_block_id", "planned_duration", "actual_duration", "is_formal_experiment",
     "operator_id", "override_reason", "sensitivity_exclude_before_sec",
     "course_attention_rating", "mental_effort", "video_interest", "video_difficulty",
     "subtraction_compliance", "subtraction_compliance_low_pct", "subtraction_compliance_high_pct",
@@ -1134,6 +1134,7 @@ class ExperimentRecorder:
         displayed_timestamp: Any = "",
         hidden_timestamp: Any = "",
         after_block_id: Any = "",
+        affected_block_id: Any = "",
         planned_duration: Any = "",
         actual_duration: Any = "",
         is_formal_experiment: Any = "",
@@ -1218,6 +1219,7 @@ class ExperimentRecorder:
                 "displayed_timestamp": displayed_timestamp,
                 "hidden_timestamp": hidden_timestamp,
                 "after_block_id": after_block_id,
+                "affected_block_id": affected_block_id,
                 "planned_duration": planned_duration,
                 "actual_duration": actual_duration,
                 "is_formal_experiment": is_formal_experiment,
@@ -1766,6 +1768,7 @@ class ExperimentRecorder:
         self.log_event(
             event_type,
             event_value=payload.get("event_value", payload.get("video_time_sec", "")),
+            affected_block_id=payload.get("affected_block_id", ""),
             notes=compact_payload,
         )
 
@@ -1893,6 +1896,7 @@ class ExperimentRecorder:
             self.current_condition_type = ""
             self.current_video_id = ""
             self.current_session_half = 0
+            self._write_metadata("recording")
 
     def stop(self, export_mat: bool = True) -> Optional[Path]:
         with self._lock:

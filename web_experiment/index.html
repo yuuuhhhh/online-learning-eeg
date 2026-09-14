@@ -408,6 +408,7 @@ let eegDropoutPaused=false;
 let lastSignalAlive=null;
 let recoveryBlocked=false;
 let recoveryReportedRun=null;
+let recoveryCheckedRun=null;
 
 function clientClockSeconds(){return (performance.timeOrigin+performance.now())/1000}
 
@@ -531,32 +532,42 @@ function applyEegSession(info){
     }
     updateGroupUi();
 
-    // A browser refresh cannot restore security-scoped local video handles.  It
-    // is safe to continue only between fully submitted blocks; otherwise lock
-    // the page and leave an explicit event so the authority-side report fails.
-    const runEvents=events.filter(event=>[info.run_id,info.run_directory].includes(event.recorder_run_id));
-    let recoveryReason="";
-    let affectedBlock=Number(info.current_block)||Math.max(0,...completed);
-    if(Number(info.current_block)>0){
-      recoveryReason=`页面在 Block ${info.current_block} 进行中刷新，视频句柄无法安全恢复`;
-    }else if(info.phase==="rest"){
-      recoveryReason=`页面在 Block ${affectedBlock} 后休息期间刷新，倒计时无法安全恢复`;
-    }else if(affectedBlock>0){
-      const ratingDone=runEvents.some(event=>event.event_type==="rating_end"&&Number(event.block_id)===affectedBlock);
-      const quizDone=runEvents.filter(event=>event.event_type==="quiz_item_response"&&Number(event.block_id)===affectedBlock).length;
-      if(!ratingDone||quizDone!==4){
-        recoveryReason=`Block ${affectedBlock} 已结束，但问卷/课堂题尚未完整提交`;
+    const recoveryRun=String(info.run_id||info.run_directory||"");
+    if(recoveryCheckedRun!==recoveryRun){
+      recoveryCheckedRun=recoveryRun;recoveryBlocked=false;recoveryReportedRun=null;lockSetup(false);
+      // A browser refresh cannot restore security-scoped local video handles.  It
+      // is safe to continue only between fully submitted blocks; otherwise lock
+      // the page and leave an explicit event so the authority-side report fails.
+      const runEvents=events.filter(event=>[info.run_id,info.run_directory].includes(event.recorder_run_id));
+      let recoveryReason="";
+      let affectedBlock=Number(info.current_block)||Math.max(0,...completed);
+      if(Number(info.current_block)>0){
+        recoveryReason=`页面在 Block ${info.current_block} 进行中刷新，视频句柄无法安全恢复`;
+      }else if(info.phase==="rest"){
+        recoveryReason=`页面在 Block ${affectedBlock} 后休息期间刷新，倒计时无法安全恢复`;
+      }else if(affectedBlock>0){
+        const affectedVideoId=info.planned_blocks?.[affectedBlock-1]?.video_id;
+        const expectedQuizItems=TOPICS[affectedVideoId]?.questions?.length||0;
+        const blockEvents=runEvents.filter(event=>blockNumber(event.block_id)===affectedBlock);
+        const ratingDone=blockEvents.some(event=>event.event_type==="rating_end");
+        const quizEndDone=blockEvents.some(event=>event.event_type==="quiz_end"&&Number(event.total)===expectedQuizItems);
+        const quizQuestionIds=new Set(blockEvents.filter(event=>event.event_type==="quiz_item_response")
+          .map(event=>String(event.question_id||"").trim()).filter(Boolean));
+        const quizDone=expectedQuizItems>0&&quizEndDone&&quizQuestionIds.size===expectedQuizItems;
+        if(!ratingDone||!quizDone){
+          recoveryReason=`Block ${affectedBlock} 已结束，但问卷/课堂题尚未完整提交`;
+        }
       }
-    }
-    if(recoveryReason){
-      recoveryBlocked=true;lockSetup(true);
-      $("startBlock").disabled=true;$("pauseBlock").disabled=true;$("stopBlock").disabled=true;
-      $("systemState").textContent="恢复被阻止｜本会话将标记为 incomplete";
-      setEegLinkState(recoveryReason,"bad");
-      if(recoveryReportedRun!==info.run_id){
-        recoveryReportedRun=info.run_id;
-        recordEvent("browser_recovery_blocked",{reason:recoveryReason,server_phase:info.phase,block_id:affectedBlock});
-        alert(`${recoveryReason}。为避免覆盖或错位，本页面已锁定。请结束采集并保留该 run，session_qc_report.json 会标记缺项。`);
+      if(recoveryReason){
+        recoveryBlocked=true;lockSetup(true);
+        $("startBlock").disabled=true;$("pauseBlock").disabled=true;$("stopBlock").disabled=true;
+        $("systemState").textContent="恢复被阻止｜本会话将标记为 incomplete";
+        setEegLinkState(recoveryReason,"bad");
+        if(recoveryReportedRun!==info.run_id){
+          recoveryReportedRun=info.run_id;
+          recordEvent("browser_recovery_blocked",{reason:recoveryReason,server_phase:info.phase,affected_block_id:affectedBlock});
+          alert(`${recoveryReason}。为避免覆盖或错位，本页面已锁定。请结束采集并保留该 run，session_qc_report.json 会标记缺项。`);
+        }
       }
     }
   }

@@ -21,6 +21,12 @@ if errorlevel 1 (
 )
 
 node tests\test_browser_v21.js
+if errorlevel 1 (
+  popd
+  exit /b 1
+)
+
+node tests\test_browser_recovery_v21.js
 set RESULT=%ERRORLEVEL%
 popd
 exit /b %RESULT%

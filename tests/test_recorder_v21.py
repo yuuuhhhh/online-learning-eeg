@@ -76,6 +76,19 @@ class RecorderTests(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "下一个必须是Block 2"):
             self.rec.begin_block(3, "V3")
 
+    def test_end_block_immediately_persists_completed_block_state(self):
+        self.unlock()
+        self.rec.begin_block(1, "V1")
+        self.rec.start_video()
+        self.rec.end_video()
+        self.rec.end_block()
+
+        metadata = json.loads(self.rec.metadata_path.read_text(encoding="utf-8"))
+        state = metadata["session"]["current_state"]
+        self.assertEqual(state["completed_blocks"], [1])
+        self.assertEqual(state["block_id"], 0)
+        self.assertEqual(state["phase"], "rest")
+
     def test_self_caught_has_motor_and_sensitivity_masks(self):
         self.unlock(); self.rec.begin_block(1, "V1"); self.rec.start_video()
         self.rec.handle_browser_event(self.payload("self_caught", block_id=1, condition="A", video_id="V1"))
@@ -110,7 +123,8 @@ class RecorderTests(unittest.TestCase):
     def test_event_and_qc_schemas_include_required_direct_fields(self):
         for field in ("event_name", "event_type", "recorder_timestamp", "browser_timestamp",
                       "device_sample_number", "subject_id", "session_id", "block_order",
-                      "video_id", "condition_label", "client_event_id", "counterbalance_group"):
+                      "video_id", "condition_label", "client_event_id", "counterbalance_group",
+                      "affected_block_id"):
             self.assertIn(field, EVENT_CSV_COLUMNS)
         self.assertIn("signal_alive", QC_CSV_COLUMNS)
         self.assertNotIn("channel_0_line_50hz_ratio_pct", QC_CSV_COLUMNS)
@@ -120,6 +134,19 @@ class RecorderTests(unittest.TestCase):
         metrics = channel_metrics(range(600), sample_rate_hz=250, scale_uv_per_count=1.0)
         self.assertNotIn("line_50hz_ratio_pct", metrics)
         self.assertIn("high_frequency_ratio_pct", metrics)
+
+    def test_recovery_event_records_affected_block_without_overwriting_current_context(self):
+        self.rec.handle_browser_event(self.payload(
+            "browser_recovery_blocked", block_id="Block 2", condition="B", topic_key="V2",
+            affected_block_id=1, reason="Block 1 incomplete",
+        ))
+        self.rec._event_handle.flush()
+        with self.rec.events_path.open(encoding="utf-8", newline="") as handle:
+            row = [row for row in csv.DictReader(handle) if row["event_type"] == "browser_recovery_blocked"][-1]
+        self.assertEqual(row["block_id"], "2")
+        self.assertEqual(row["condition"], "B")
+        self.assertEqual(row["video_id"], "V2")
+        self.assertEqual(row["affected_block_id"], "1")
 
     def test_two_second_dropout_and_recovery_are_recorded(self):
         self.unlock(); self.rec.begin_block(1, "V1"); self.rec.start_video()
