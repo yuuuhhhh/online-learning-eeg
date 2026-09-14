@@ -1,8 +1,8 @@
 {
   "schema_version": "2.2.0",
-  "config_version": "2.2-formal-frozen-2026-09-14",
+  "config_version": "2.2-formal-bundled-videos-2026-09-14",
   "protocol_version": "2.1",
-  "software_version": "2.2.1",
+  "software_version": "2.2.2",
   "frozen_for_formal": true,
   "study_phases": ["smoke", "pilot", "formal"],
   "conditions": {
@@ -80,6 +80,7 @@
   },
   "materials": {
     "version": "attention-course-2026-09-12",
+    "web_relative_base_path": "../materials/videos",
     "candidate_videos": [],
     "videos": [
       {

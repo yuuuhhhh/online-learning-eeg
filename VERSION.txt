@@ -1,8 +1,8 @@
 原始 EEG 与实验标签同步采集系统
-software_version: 2.2.1
+software_version: 2.2.2
 protocol_version: 2.1
 schema_version: 2.2.0
-config_version: 2.2-formal-frozen-2026-09-14
+config_version: 2.2-formal-bundled-videos-2026-09-14
 发布日期: 2026-09-14
 状态: 正式协议已冻结；formal 已启用
 
@@ -15,6 +15,7 @@ config_version: 2.2-formal-frozen-2026-09-14
 - 结束时不切窗、不预处理；离线工具移至 offline_analysis
 - 生成 acquisition_qc.csv、session_acquisition_report.json、checksums.sha256 和可选 session_raw.mat
 - 报告/MAT 失败不删除原始文件，报告前后复核原始 SHA-256
+- 网页按项目相对路径自动载入六段正式视频，被试无需选择或上传文件
 
 正式采集配置：
 - frozen_for_formal=true，允许创建 formal 会话

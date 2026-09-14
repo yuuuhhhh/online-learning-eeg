@@ -17,7 +17,7 @@ class ProtocolConfigTests(unittest.TestCase):
     def test_config_is_valid_and_traceable(self):
         config, digest, path = load_protocol_config(ROOT)
         self.assertEqual(config["protocol_version"], "2.1")
-        self.assertEqual(config["software_version"], "2.2.1")
+        self.assertEqual(config["software_version"], "2.2.2")
         self.assertTrue(config["frozen_for_formal"])
         self.assertEqual(config["flow"]["baseline_duration_sec"], 30)
         self.assertEqual(
@@ -69,6 +69,7 @@ class ProtocolConfigTests(unittest.TestCase):
         self.assertEqual(config.study_phase, "formal")
 
     def test_materials_are_six_real_videos_with_four_questions(self):
+        self.assertEqual(PROTOCOL_CONFIG["materials"]["web_relative_base_path"], "../materials/videos")
         for video in PROTOCOL_CONFIG["materials"]["videos"]:
             path = ROOT / "materials" / "videos" / video["filename"]
             self.assertTrue(path.exists(), path)
