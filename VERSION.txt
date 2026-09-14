@@ -1,10 +1,10 @@
 原始 EEG 与实验标签同步采集系统
-software_version: 2.2.0
+software_version: 2.2.1
 protocol_version: 2.1
 schema_version: 2.2.0
-config_version: 2.2-raw-acquisition-2026-09-14
+config_version: 2.2-formal-frozen-2026-09-14
 发布日期: 2026-09-14
-状态: pilot 原始采集版；formal 已锁定
+状态: 正式协议已冻结；formal 已启用
 
 本版完成：
 - 原始 BLE 包、signed 24-bit ADC counts、实验事件和行为标签同步保存
@@ -16,7 +16,8 @@ config_version: 2.2-raw-acquisition-2026-09-14
 - 生成 acquisition_qc.csv、session_acquisition_report.json、checksums.sha256 和可选 session_raw.mat
 - 报告/MAT 失败不删除原始文件，报告前后复核原始 SHA-256
 
-仍须负责人/实验组完成：
-- 2 人 smoke test 和 6-8 人 pilot
-- 补充 2-3 段候选备用视频
-- pilot 后冻结正式实验流程参数并将 frozen_for_formal 设为 true
+正式采集配置：
+- frozen_for_formal=true，允许创建 formal 会话
+- formal 强制按 G01-G12 锁定顺序完成 6 个 Block
+- formal 每个 Block 使用 4 个 probe，Block 1-5 后休息固定 30 秒且不可提前结束
+- 采集报告仅判断原始数据与标签完整性，不生成训练可用性结论

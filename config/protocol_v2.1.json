@@ -1,9 +1,9 @@
 {
   "schema_version": "2.2.0",
-  "config_version": "2.2-raw-acquisition-2026-09-14",
+  "config_version": "2.2-formal-frozen-2026-09-14",
   "protocol_version": "2.1",
-  "software_version": "2.2.0",
-  "frozen_for_formal": false,
+  "software_version": "2.2.1",
+  "frozen_for_formal": true,
   "study_phases": ["smoke", "pilot", "formal"],
   "conditions": {
     "A": {

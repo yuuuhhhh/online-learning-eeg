@@ -2,7 +2,7 @@
 
 本系统只负责双通道 MindBridge BLE 原始数据、逐样本 ADC counts、实验事件和行为标签的同步采集、保存与完整性检查。采集流程不会重参考、滤波、去伪迹、降采样、切窗、标准化、划分数据集，也不会生成训练可用性结论。
 
-当前 `frozen_for_formal=false`，因此仍只允许 `smoke` 和 `pilot` 会话。
+当前协议已冻结（`frozen_for_formal=true`），允许创建 `smoke`、`pilot` 和 `formal` 会话。正式采集请选择 `formal`；该模式强制按顺序完成六个 Block，并禁止提前结束计划休息。
 
 ## 启动
 
